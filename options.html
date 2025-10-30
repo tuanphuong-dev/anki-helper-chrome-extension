@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Anki Extension Settings</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 24px;
+      }
+      label {
+        font-weight: bold;
+      }
+      input[type="password"],
+      input[type="text"] {
+        width: 400px;
+        padding: 8px;
+        margin: 8px 0;
+      }
+      button {
+        padding: 8px 16px;
+      }
+      #status {
+        margin-top: 12px;
+        color: #388e3c;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Nhập Gemini API Key & Deck Name</h2>
+    <label for="geminiApiKey">Gemini API Key:</label><br />
+    <input
+      type="password"
+      id="geminiApiKey"
+      placeholder="Paste your Gemini API Key here"
+    /><br />
+    <label for="deckName">Deck Name:</label><br />
+    <input type="text" id="deckName" placeholder="English Vocabulary" /><br />
+    <button id="saveBtn">Lưu</button>
+    <div id="status"></div>
+    <script src="options.js"></script>
+  </body>
+</html>
