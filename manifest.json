@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Anki Vocabulary Helper",
   "version": "1.0",
-  "description": "Add selected English words to Anki via CLI",
+  "description": "Add selected English words to Anki via Chrome context menu.",
   "permissions": ["contextMenus", "nativeMessaging", "scripting", "storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -17,7 +17,10 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["libs/compromise.min.js", "content.js"]
+      "js": [
+        "libs/compromise.min.js", 
+        "content.js"
+      ]
     }
   ]
 }

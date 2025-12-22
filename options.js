@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const inputDeck = document.getElementById("deckName");
   const status = document.getElementById("status");
 
-  // Lấy giá trị đã lưu (nếu có)
+  // Load saved settings
   chrome.storage.local.get(['geminiApiKey', 'deckName'], function(result) {
     if (result && result.geminiApiKey) inputKey.value = result.geminiApiKey;
     inputDeck.value = result && result.deckName ? result.deckName : "English Vocabulary";
@@ -13,14 +13,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const key = inputKey.value.trim();
     const deck = inputDeck.value.trim() || "English Vocabulary";
     if (!key) {
-      showPopup("Vui lòng nhập Gemini API Key!", false);
+      showPopup("Please enter Gemini API Key!", false);
       return;
     }
     chrome.storage.local.set({ geminiApiKey: key, deckName: deck }, function() {
       if (chrome.runtime && chrome.runtime.lastError) {
-        showPopup("Lưu thất bại: " + chrome.runtime.lastError.message, false);
+        showPopup("Save settings failed: " + chrome.runtime.lastError.message, false);
       } else {
-        showPopup("Đã lưu cài đặt!", true);
+        showPopup("Settings saved!", true);
       }
     });
   };

@@ -110,7 +110,7 @@ async function geminiTranslate(word) {
 
   try {
     const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + apiKey,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,7 +152,7 @@ async function getWordInfo(word, translation) {
   const prompt = getInfoPrompt(word, translation);
   try {
     const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + apiKey,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -677,7 +677,7 @@ async function normalizeWord(tabId, word) {
         }
 
         if (typeof nlp === "undefined") {
-          result.log.push("Compromise (nlp) is not loaded!");
+          result.log.push("compromise_nlp is not loaded!");
           return result;
         }
         let doc = nlp(lowercaseWord);
@@ -831,6 +831,35 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
             });
           });
         }
+      });
+    });
+  }
+});
+
+// =======================
+// Listen for floating button message from content.js
+// =======================
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "ankihelper_add_to_anki" && msg.text) {
+    const tabId = sender.tab ? sender.tab.id : undefined;
+    if (!tabId) return;
+    normalizeWord(tabId, msg.text).then(infinitiveWord => {
+      const loadingId = "ankihelper-loading-notify";
+      notify(tabId, "Đang thêm vào Anki...", true, loadingId);
+      getGeminiApiKey().then(apiKey => {
+        if (!apiKey) {
+          removeNotify(tabId, loadingId);
+          notify(tabId, "Vui lòng nhập Gemini API Key trong phần cài đặt extension!", false);
+          return;
+        }
+        addToAnki(infinitiveWord).then(result => {
+          removeNotify(tabId, loadingId);
+          if (result.success) {
+            notify(tabId, `Đã thêm vào Anki: ${infinitiveWord} (${result.vietnameseTranslation})`, true);
+          } else {
+            notify(tabId, "Thêm vào Anki thất bại.", false);
+          }
+        });
       });
     });
   }
