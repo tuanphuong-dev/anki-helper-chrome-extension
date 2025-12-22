@@ -416,11 +416,65 @@ async function getDeckName() {
 // =======================
 // Main Add-to-Anki Logic
 // =======================
+
+// Helper: Get both translation and info from Gemini in one call
+async function getGeminiTranslationAndInfo(word) {
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) return { translation: "", info: {} };
+  // Compose a single prompt to get both translation and info
+  const prompt = `For the English word "${word}", provide the following in JSON:\n{\n  \"translation\": \"<Vietnamese translation, only the word, no explanation, lowercase>\",\n  \"example\": \"<Give a simple, natural English sentence using the word \\\"${word}\\\". Do not use generic templates or mention the instruction itself.>\",\n  \"exampleVN\": \"<Translate the example sentence to Vietnamese.>\",\n  \"ipa\": \"<IPA transcription, e.g. /ˈwɜ:d/>\",\n  \"type\": \"<word type: n, v, adj, adv, prep, pron, conj, interj>\",\n  \"syllables\": \"<Split the word into syllables, separated by comma, e.g. pro, cras, ti, nate>\"\n}\nOnly output valid JSON, no explanation, no extra text.`;
+  try {
+    const res = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + apiKey,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+    const data = await res.json();
+    let respText = "";
+    if (data && data.candidates && data.candidates.length > 0) {
+      const parts = data.candidates[0].content.parts;
+      if (parts && parts.length > 0 && parts[0].text) {
+        respText = parts[0].text;
+      }
+    }
+    const start = respText.indexOf("{");
+    const end = respText.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      const jsonStr = respText.slice(start, end + 1);
+      try {
+        const info = JSON.parse(jsonStr);
+        return {
+          translation: info.translation ? info.translation.trim().toLowerCase() : "",
+          info: {
+            example: info.example ? info.example.trim() : "",
+            exampleVN: info.exampleVN ? info.exampleVN.trim() : "",
+            ipa: info.ipa ? info.ipa.trim() : "",
+            type: info.type ? info.type.trim() : "",
+            syllables: info.syllables ? info.syllables.trim() : ""
+          }
+        };
+      } catch (e) {
+        console.warn("Gemini getGeminiTranslationAndInfo JSON parse error:", e, jsonStr);
+        return { translation: "", info: {} };
+      }
+    }
+    return { translation: "", info: {} };
+  } catch (err) {
+    console.error("Gemini getGeminiTranslationAndInfo error:", err);
+    return { translation: "", info: {} };
+  }
+}
+
 async function addToAnki(word) {
   const deckName = await getDeckName();
   const modelName = "English Vocab Cloze Template 1.0";
   const inOrderFields = [
-    "EnglishWord", "EnglishCloze", "VietnameseTranslation", "VietnameseCloze",
+    "Id", "EnglishWord", "EnglishCloze", "VietnameseTranslation", "VietnameseCloze",
     "IPA", "WordType", "ExampleSentence", "ExampleSentenceVN", "AudioFile", "Syllables"
   ];
 
@@ -428,13 +482,10 @@ async function addToAnki(word) {
   await ensureModelExists(modelName, inOrderFields, css, cardTemplates);
 
   const englishCloze = createCloze(word);
-  const vietnameseTranslation = await geminiTranslate(word);
+  const { translation: vietnameseTranslation, info } = await getGeminiTranslationAndInfo(word);
   const vietnameseCloze = createCloze(vietnameseTranslation);
 
-  const [info, audioFile] = await Promise.all([
-    getWordInfo(word, vietnameseTranslation),
-    downloadAndStoreAudio(word)
-  ]);
+  const audioFile = await downloadAndStoreAudio(word);
   console.log("Word info from Gemini:", info);
   console.log("Audio filename for word:", word, audioFile);
 
@@ -442,6 +493,7 @@ async function addToAnki(word) {
     deckName,
     modelName,
     fields: {
+      Id: word+"::"+vietnameseTranslation,
       EnglishWord: word,
       EnglishCloze: englishCloze,
       VietnameseTranslation: vietnameseTranslation,
@@ -493,7 +545,7 @@ async function addToAnkiWithCustomMeaning(word, vietnameseTranslation) {
   const deckName = await getDeckName();
   const modelName = "English Vocab Cloze Template 1.0";
   const inOrderFields = [
-    "EnglishWord", "EnglishCloze", "VietnameseTranslation", "VietnameseCloze",
+    "Id", "EnglishWord", "EnglishCloze", "VietnameseTranslation", "VietnameseCloze",
     "IPA", "WordType", "ExampleSentence", "ExampleSentenceVN", "AudioFile", "Syllables"
   ];
 
@@ -503,10 +555,9 @@ async function addToAnkiWithCustomMeaning(word, vietnameseTranslation) {
   const englishCloze = createCloze(word);
   const vietnameseCloze = createCloze(vietnameseTranslation);
 
-  const [info, audioFile] = await Promise.all([
-    getWordInfo(word, vietnameseTranslation),
-    downloadAndStoreAudio(word)
-  ]);
+  // Only call Gemini for info, since translation is provided
+  const info = await getWordInfo(word, vietnameseTranslation);
+  const audioFile = await downloadAndStoreAudio(word);
   console.log("Word info from Gemini:", info);
   console.log("Audio filename for word:", word, audioFile);
 
@@ -514,6 +565,7 @@ async function addToAnkiWithCustomMeaning(word, vietnameseTranslation) {
     deckName,
     modelName,
     fields: {
+      Id: word+"::"+vietnameseTranslation,
       EnglishWord: word,
       EnglishCloze: englishCloze,
       VietnameseTranslation: vietnameseTranslation,
@@ -546,7 +598,6 @@ async function addToAnkiWithCustomMeaning(word, vietnameseTranslation) {
     }
     return { success: true, vietnameseTranslation };
   } catch (err) {
-    // Hiển thị popup lỗi và clear popup loading
     if (typeof chrome !== "undefined" && chrome.tabs) {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs && tabs.length > 0) {
