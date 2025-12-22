@@ -1,43 +1,450 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Anki Extension Settings</title>
     <style>
+      :root {
+        --bg: #f5f7fb;
+        --card-bg: #ffffff;
+        --primary: #2563eb;
+        --primary-hover: #1d4ed8;
+        --border: #e0e4ec;
+        --text-main: #111827;
+        --text-muted: #6b7280;
+        --success: #15803d;
+        --danger: #dc2626;
+        --radius-lg: 12px;
+        --radius-md: 8px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: Arial, sans-serif;
+        margin: 0;
         padding: 24px;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Arial, sans-serif;
+        background: #f3f4f6;
+        color: var(--text-main);
       }
+
+      .page {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .title-block {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .title-accent {
+        width: 4px;
+        height: 26px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #3b82f6, #22c55e);
+      }
+
+      h1 {
+        font-size: 20px;
+        margin: 0;
+        font-weight: 650;
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+
+      .card {
+        background: var(--card-bg);
+        border-radius: var(--radius-lg);
+        padding: 18px 20px 16px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+      }
+
+      .form-section + .form-section {
+        border-top: 1px dashed #e5e7eb;
+        margin-top: 16px;
+        padding-top: 16px;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .section-title {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #4b5563;
+      }
+
+      .field-group {
+        margin-bottom: 12px;
+      }
+
+      .field-label-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+
       label {
-        font-weight: bold;
+        font-size: 13px;
+        font-weight: 600;
+        color: #111827;
       }
+
+      .required-star {
+        color: var(--danger);
+        margin-left: 2px;
+      }
+
+      .tooltip-icon {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        font-size: 11px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #6b7280;
+        cursor: default;
+        background: #f9fafb;
+      }
+
+      /* Custom Tooltip Styles */
+      .custom-tooltip {
+        position: fixed;
+        z-index: 9999;
+        background: #222;
+        color: #fff;
+        padding: 7px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+        max-width: 260px;
+        word-break: break-word;
+      }
+      .custom-tooltip.active {
+        opacity: 1;
+      }
+
       input[type="password"],
-      input[type="text"] {
-        width: 400px;
-        padding: 8px;
-        margin: 8px 0;
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 9px 10px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border);
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease,
+          background-color 0.15s ease;
+        background-color: #f9fafb;
       }
-      button {
+
+      input[type="password"]:focus,
+      input[type="text"]:focus,
+      select:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.18);
+        background-color: #ffffff;
+      }
+
+      select {
+        cursor: pointer;
+      }
+
+      .api-key-list-wrapper {
+        border-radius: var(--radius-md);
+        background: #f9fafb;
+        border: 1px dashed #d1d5db;
+        padding: 8px 10px;
+        max-height: 180px;
+        overflow-y: auto;
+      }
+
+      #apiKeyPoolContainer {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .api-key-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .api-key-row input {
+        flex: 1;
+      }
+
+      .icon-btn {
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        color: #6b7280;
+        transition: background-color 0.12s ease, color 0.12s ease,
+          transform 0.1s ease;
+      }
+
+      .icon-btn:hover {
+        background: #fee2e2;
+        color: var(--danger);
+        transform: translateY(-0.5px);
+      }
+
+      button.primary {
         padding: 8px 16px;
+        border-radius: 999px;
+        border: none;
+        background: var(--primary);
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25);
+        transition: background-color 0.15s ease, transform 0.08s ease,
+          box-shadow 0.15s ease;
       }
+
+      button.primary:hover {
+        background: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35);
+      }
+
+      button.primary:active {
+        transform: translateY(0);
+        box-shadow: 0 5px 14px rgba(37, 99, 235, 0.25);
+      }
+
+      button.secondary {
+        padding: 7px 12px;
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        background: #f9fafb;
+        color: #374151;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background-color 0.12s ease, border-color 0.12s ease,
+          transform 0.08s ease;
+      }
+
+      button.secondary:hover {
+        background: #eef2ff;
+        border-color: #c7d2fe;
+        transform: translateY(-0.5px);
+      }
+
+      .actions-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 16px;
+        gap: 10px;
+      }
+
+      .status-text {
+        font-size: 12px;
+        min-height: 16px;
+        color: var(--text-muted);
+      }
+
       #status {
-        margin-top: 12px;
-        color: #388e3c;
+        color: var(--success);
+      }
+
+      @media (max-width: 640px) {
+        body {
+          padding: 16px;
+        }
+        .card {
+          padding: 14px 12px 14px;
+        }
+        .header {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .actions-row {
+          flex-direction: column-reverse;
+          align-items: stretch;
+        }
+        button.primary {
+          width: 100%;
+          justify-content: center;
+        }
       }
     </style>
   </head>
   <body>
-    <h2>Nhập Gemini API Key & Deck Name</h2>
-    <label for="geminiApiKey">Gemini API Key:</label><br />
-    <input
-      type="password"
-      id="geminiApiKey"
-      placeholder="Paste your Gemini API Key here"
-    /><br />
-    <label for="deckName">Deck Name:</label><br />
-    <input type="text" id="deckName" placeholder="English Vocabulary" /><br />
-    <button id="saveBtn">Lưu</button>
-    <div id="status"></div>
+    <div class="page">
+      <header class="header">
+        <div class="title-block">
+          <div class="title-row">
+            <div class="title-accent"></div>
+            <h1>Anki Extension Settings</h1>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="card">
+          <!-- API KEY SECTION -->
+          <div class="form-section">
+            <div class="section-header">
+              <div class="section-title">Gemini API Keys</div>
+            </div>
+
+            <div class="field-group">
+              <div class="field-label-row">
+                <label for="apiKeyPoolContainer">
+                  Gemini API Key Pool
+                  <span class="required-star">*</span>
+                </label>
+                <span
+                  class="tooltip-icon"
+                  title="You can add multiple API keys. The extension will rotate them in a round‑robin fashion."
+                  >?</span
+                >
+              </div>
+
+              <div class="api-key-list-wrapper">
+                <div id="apiKeyPoolContainer">
+                  <!-- API key rows rendered by options.js -->
+                </div>
+              </div>
+
+              <div
+                style="
+                  margin-top: 8px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  gap: 10px;
+                  flex-wrap: wrap;
+                "
+              >
+                <button
+                  type="button"
+                  id="addApiKeyBtn"
+                  class="secondary"
+                >
+                  + Add API Key
+                </button>
+
+                <span
+                  class="tooltip-icon"
+                  title="Keys are used in a round‑robin way to reduce the chance of hitting rate limits."
+                  >i</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- MODEL & DECK SECTION -->
+          <div class="form-section">
+            <div class="section-header">
+              <div class="section-title">Model & Deck</div>
+            </div>
+
+            <div class="field-group">
+              <div class="field-label-row">
+                <label for="geminiModel">
+                  Gemini Model
+                  <span class="required-star">*</span>
+                </label>
+                <span
+                  class="tooltip-icon"
+                  title="Choose the Gemini model you want to use for generating cards."
+                  >?</span
+                >
+              </div>
+              <select id="geminiModel">
+                <option value="gemini-2.5-flash-lite">
+                  Gemini 2.5 Flash-Lite
+                </option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <div class="field-label-row">
+                <label for="deckName">
+                  Deck Name
+                  <span class="required-star">*</span>
+                </label>
+                <span
+                  class="tooltip-icon"
+                  title="Name of the deck in Anki. If it does not exist, Anki will create it."
+                  >?</span
+                >
+              </div>
+              <input
+                type="text"
+                id="deckName"
+                placeholder="e.g. English Vocabulary"
+              />
+            </div>
+          </div>
+
+          <!-- ACTIONS -->
+          <div class="actions-row">
+            <div class="status-text">
+              <span id="status"></span>
+            </div>
+            <button id="saveBtn" class="primary">Save settings</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
     <script src="options.js"></script>
   </body>
 </html>

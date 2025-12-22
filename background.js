@@ -1,3 +1,14 @@
+function getGeminiModel() {
+  return new Promise((resolve) => {
+    if (chrome && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['geminiModel'], (result) => {
+        resolve(result.geminiModel || 'gemini-2.5-flash-lite');
+      });
+    } else {
+      resolve('gemini-2.5-flash-lite');
+    }
+  });
+}
 // =======================
 // Context Menu Setup
 // =======================
@@ -88,11 +99,24 @@ function createSingleWordCloze(word) {
 // =======================
 // Gemini API Helpers
 // =======================
-function getGeminiApiKey() {
+
+// Round-robin Gemini API Key Pool
+let geminiApiKeyPoolIndex = 0;
+function getGeminiApiKeyFromPool() {
   return new Promise((resolve) => {
     if (chrome && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.get(['geminiApiKey'], (result) => {
-        resolve(result.geminiApiKey || "");
+      chrome.storage.local.get(['geminiApiKeyPool', 'geminiApiKey'], (result) => {
+        let pool = result.geminiApiKeyPool;
+        if (Array.isArray(pool) && pool.length > 0) {
+          // Round-robin
+          const idx = geminiApiKeyPoolIndex % pool.length;
+          geminiApiKeyPoolIndex = (geminiApiKeyPoolIndex + 1) % pool.length;
+          resolve(pool[idx]);
+        } else if (typeof result.geminiApiKey === 'string' && result.geminiApiKey) {
+          resolve(result.geminiApiKey);
+        } else {
+          resolve("");
+        }
       });
     } else {
       resolve("");
@@ -101,7 +125,7 @@ function getGeminiApiKey() {
 }
 
 async function geminiTranslate(word) {
-  const apiKey = await getGeminiApiKey();
+  const apiKey = await getGeminiApiKeyFromPool();
   if (!apiKey) {
     console.error("Gemini API Key chưa được thiết lập.");
     return "";
@@ -109,8 +133,9 @@ async function geminiTranslate(word) {
   const prompt = `Translate this to Vietnamese: "${word}". Only output the Vietnamese translation, no explanation, no extra text. Write the result in lowercase.`;
 
   try {
+    const model = await getGeminiModel();
     const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + apiKey,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=` + apiKey,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -147,12 +172,13 @@ Only output valid JSON, no explanation, no extra text.`;
 }
 
 async function getWordInfo(word, translation) {
-  const apiKey = await getGeminiApiKey();
+  const apiKey = await getGeminiApiKeyFromPool();
   if (!apiKey) return {};
   const prompt = getInfoPrompt(word, translation);
   try {
+    const model = await getGeminiModel();
     const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + apiKey,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=` + apiKey,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -419,13 +445,14 @@ async function getDeckName() {
 
 // Helper: Get both translation and info from Gemini in one call
 async function getGeminiTranslationAndInfo(word) {
-  const apiKey = await getGeminiApiKey();
+  const apiKey = await getGeminiApiKeyFromPool();
   if (!apiKey) return { translation: "", info: {} };
   // Compose a single prompt to get both translation and info
   const prompt = `For the English word "${word}", provide the following in JSON:\n{\n  \"translation\": \"<Vietnamese translation, only the word, no explanation, lowercase>\",\n  \"example\": \"<Give a simple, natural English sentence using the word \\\"${word}\\\". Do not use generic templates or mention the instruction itself.>\",\n  \"exampleVN\": \"<Translate the example sentence to Vietnamese.>\",\n  \"ipa\": \"<IPA transcription, e.g. /ˈwɜ:d/>\",\n  \"type\": \"<word type: n, v, adj, adv, prep, pron, conj, interj>\",\n  \"syllables\": \"<Split the word into syllables, separated by comma, e.g. pro, cras, ti, nate>\"\n}\nOnly output valid JSON, no explanation, no extra text.`;
   try {
+    const model = await getGeminiModel();
     const res = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=" + apiKey,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=` + apiKey,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -850,7 +877,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       const loadingId = "ankihelper-loading-notify";
       notify(tab.id, "Đang thêm vào Anki...", true, loadingId);
 
-      getGeminiApiKey().then(apiKey => {
+      getGeminiApiKeyFromPool().then(apiKey => {
         if (!apiKey) {
           removeNotify(tab.id, loadingId);
           notify(tab.id, "Vui lòng nhập Gemini API Key trong phần cài đặt extension!", false);
@@ -897,7 +924,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     normalizeWord(tabId, msg.text).then(infinitiveWord => {
       const loadingId = "ankihelper-loading-notify";
       notify(tabId, "Đang thêm vào Anki...", true, loadingId);
-      getGeminiApiKey().then(apiKey => {
+      getGeminiApiKeyFromPool().then(apiKey => {
         if (!apiKey) {
           removeNotify(tabId, loadingId);
           notify(tabId, "Vui lòng nhập Gemini API Key trong phần cài đặt extension!", false);
