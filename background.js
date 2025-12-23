@@ -162,7 +162,7 @@ async function geminiTranslate(word) {
 function getInfoPrompt(word, translation) {
   return `For the English word "${word}" (Vietnamese: "${translation}"), provide the following in JSON:
 {
-  "example": "<Give a simple, natural English sentence using the word \\"${word}\\". Do not use generic templates or mention the instruction itself.>",
+  "example": "<Give a simple, natural English sentence using the word \\"${word}\\" with Vietnamese meaning is \\"${translation}\\". Do not use generic templates or mention the instruction itself.>",
   "exampleVN": "<Translate the example sentence to Vietnamese.>",
   "ipa": "<IPA transcription, e.g. /ˈwɜ:d/>",
   "type": "<word type: n, v, adj, adv, prep, pron, conj, interj>",
@@ -175,6 +175,7 @@ async function getWordInfo(word, translation) {
   const apiKey = await getGeminiApiKeyFromPool();
   if (!apiKey) return {};
   const prompt = getInfoPrompt(word, translation);
+  console.log("Gemini getWordInfo prompt:", prompt);
   try {
     const model = await getGeminiModel();
     const res = await fetch(
@@ -582,7 +583,6 @@ async function addToAnkiWithCustomMeaning(word, vietnameseTranslation) {
   const englishCloze = createCloze(word);
   const vietnameseCloze = createCloze(vietnameseTranslation);
 
-  // Only call Gemini for info, since translation is provided
   const info = await getWordInfo(word, vietnameseTranslation);
   const audioFile = await downloadAndStoreAudio(word);
   console.log("Word info from Gemini:", info);
@@ -826,36 +826,55 @@ function promptForVietnamese(tabId, word) {
         popup.style.textAlign = "center";
         popup.innerHTML = `
           <div style="margin-bottom: 12px;">
-            <strong>Nhập nghĩa tiếng Việt cho:</strong><br>
-            <span style="color:#1565c0;font-size:22px;">${selectedWord}</span>
+            <strong>Chỉnh sửa từ tiếng Anh (nếu cần):</strong><br>
+            <input id="ankihelper-en-input" type="text" value="${selectedWord}" style="width:90%;padding:8px;font-size:18px;border-radius:6px;border:1px solid #1976d2;margin-bottom:16px;" />
           </div>
-          <input id="ankihelper-vn-input" type="text" style="width:90%;padding:8px;font-size:18px;border-radius:6px;border:1px solid #ccc;" autofocus />
-          <div style="margin-top:18px;">
-            <button id="ankihelper-vn-ok" style="background:#388e3c;color:#fff;padding:8px 18px;border:none;border-radius:6px;font-size:18px;cursor:pointer;margin-right:10px;">OK</button>
-            <button id="ankihelper-vn-cancel" style="background:#c62828;color:#fff;padding:8px 18px;border:none;border-radius:6px;font-size:18px;cursor:pointer;">Hủy</button>
+          <div style="margin-bottom: 12px;">
+            <strong>Nhập nghĩa tiếng Việt cho:</strong><br>
+            <input id="ankihelper-vn-input" type="text" style="width:90%;padding:8px;font-size:18px;border-radius:6px;border:1px solid #ccc;" />
+          </div>
+          <div style="margin-top:18px;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;">
+            <button id="ankihelper-vn-ok" style="background:#388e3c;color:#fff;padding:8px 18px;border:none;border-radius:6px;font-size:18px;cursor:pointer;">OK</button>
+            <button id="ankihelper-vn-default" style="background:#1976d2;color:#fff;padding:8px 18px;border:none;border-radius:6px;font-size:18px;cursor:pointer;">✨ Auto</button>
+            <button id="ankihelper-vn-cancel" style="background:#c62828;color:#fff;padding:8px 18px;border:none;border-radius:6px;font-size:18px;cursor:pointer;">Cancel</button>
           </div>
         `;
         document.body.appendChild(popup);
 
-        const input = document.getElementById("ankihelper-vn-input");
-        input.focus();
+        const enInput = document.getElementById("ankihelper-en-input");
+        const vnInput = document.getElementById("ankihelper-vn-input");
+        vnInput.focus();
 
         function cleanup() {
           popup.remove();
         }
 
         document.getElementById("ankihelper-vn-ok").onclick = () => {
-          const value = input.value.trim();
+          const enValue = enInput.value.trim();
+          const vnValue = vnInput.value.trim();
           cleanup();
-          resolve(value);
+          resolve({ english: enValue, vietnamese: vnValue });
+        };
+        document.getElementById("ankihelper-vn-default").onclick = () => {
+          const enValue = enInput.value.trim();
+          cleanup();
+          resolve({ english: enValue, vietnamese: "__default__" });
         };
         document.getElementById("ankihelper-vn-cancel").onclick = () => {
           cleanup();
-          resolve("");
+          resolve({ english: null, vietnamese: "" });
         };
-        input.onkeydown = (e) => {
+        vnInput.onkeydown = (e) => {
           if (e.key === "Enter") {
             document.getElementById("ankihelper-vn-ok").click();
+          }
+          if (e.key === "Escape") {
+            document.getElementById("ankihelper-vn-cancel").click();
+          }
+        };
+        enInput.onkeydown = (e) => {
+          if (e.key === "Enter") {
+            vnInput.focus();
           }
           if (e.key === "Escape") {
             document.getElementById("ankihelper-vn-cancel").click();
@@ -865,8 +884,8 @@ function promptForVietnamese(tabId, word) {
     },
     args: [word],
   }).then(results => {
-    // results[0].result is the user input
-    return results && results[0] && typeof results[0].result === "string" ? results[0].result : "";
+    // results[0].result is an object: { english, vietnamese }
+    return results && results[0] && typeof results[0].result === "object" ? results[0].result : { english: word, vietnamese: "" };
   });
 }
 
@@ -893,16 +912,32 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
             }
           });
         } else if (info.menuItemId === "add-to-anki-custom-meaning") {
-          promptForVietnamese(tab.id, infinitiveWord).then(vietnameseTranslation => {
-            if (!vietnameseTranslation) {
+          promptForVietnamese(tab.id, infinitiveWord).then(({ english, vietnamese }) => {
+            // If user cancels, english will be null
+            if (english === null) {
+              removeNotify(tab.id, loadingId);
+              return;
+            }
+            if (!vietnamese) {
               removeNotify(tab.id, loadingId);
               notify(tab.id, "Bạn chưa nhập nghĩa tiếng Việt!", false);
               return;
             }
-            addToAnkiWithCustomMeaning(infinitiveWord, vietnameseTranslation).then(result => {
+            if (vietnamese === "__default__") {
+              addToAnki(english).then(result => {
+                removeNotify(tab.id, loadingId);
+                if (result.success) {
+                  notify(tab.id, `Đã thêm vào Anki: ${english} (${result.vietnameseTranslation})`, true);
+                } else {
+                  notify(tab.id, "Thêm vào Anki thất bại.", false);
+                }
+              });
+              return;
+            }
+            addToAnkiWithCustomMeaning(english, vietnamese).then(result => {
               removeNotify(tab.id, loadingId);
               if (result.success) {
-                notify(tab.id, `Đã thêm vào Anki: ${infinitiveWord} (${vietnameseTranslation})`, true);
+                notify(tab.id, `Đã thêm vào Anki: ${english} (${vietnamese})`, true);
               } else {
                 notify(tab.id, "Thêm vào Anki thất bại.", false);
               }
@@ -930,13 +965,36 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           notify(tabId, "Vui lòng nhập Gemini API Key trong phần cài đặt extension!", false);
           return;
         }
-        addToAnki(infinitiveWord).then(result => {
-          removeNotify(tabId, loadingId);
-          if (result.success) {
-            notify(tabId, `Đã thêm vào Anki: ${infinitiveWord} (${result.vietnameseTranslation})`, true);
-          } else {
-            notify(tabId, "Thêm vào Anki thất bại.", false);
+        promptForVietnamese(tabId, infinitiveWord).then(({ english, vietnamese }) => {
+          // If user cancels, english will be null
+          if (english === null) {
+            removeNotify(tabId, loadingId);
+            return;
           }
+          if (vietnamese === "__default__") {
+            addToAnki(english).then(result => {
+              removeNotify(tabId, loadingId);
+              if (result.success) {
+                notify(tabId, `Đã thêm vào Anki: ${english} (${result.vietnameseTranslation})`, true);
+              } else {
+                notify(tabId, "Thêm vào Anki thất bại.", false);
+              }
+            });
+            return;
+          }
+          if (!vietnamese) {
+            removeNotify(tabId, loadingId);
+            notify(tabId, "Bạn chưa nhập nghĩa tiếng Việt!", false);
+            return;
+          }
+          addToAnkiWithCustomMeaning(english, vietnamese).then(result => {
+            removeNotify(tabId, loadingId);
+            if (result.success) {
+              notify(tabId, `Đã thêm vào Anki: ${english} (${vietnamese})`, true);
+            } else {
+              notify(tabId, "Thêm vào Anki thất bại.", false);
+            }
+          });
         });
       });
     });
