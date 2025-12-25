@@ -15,6 +15,47 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     document.body.appendChild(div);
     setTimeout(() => div.remove(), 3000);
   }
+
+  // Listen for context menu trigger from background
+  if (msg.type === "ankihelper_read_page_content") {
+    // Gather main content, title, and SEO meta
+    const title = document.title;
+    const metaDescription = document.querySelector('meta[name="description"]')?.content || "";
+    const metaKeywords = document.querySelector('meta[name="keywords"]')?.content || "";
+    // Try to get main content (fallback to body text)
+    let mainContent = "";
+    const main = document.querySelector("main");
+    if (main) {
+      mainContent = main.innerText;
+    } else {
+      mainContent = document.body.innerText;
+    }
+    chrome.runtime.sendMessage({
+      type: "ankihelper_page_content_result",
+      data: {
+        title,
+        metaDescription,
+        metaKeywords,
+        mainContent
+      }
+    });
+  }
+
+  if (msg.type === "ankihelper_read_selection_content" && msg.selection) {
+    // Gather selected content, title, and SEO meta
+    const title = document.title;
+    const metaDescription = document.querySelector('meta[name="description"]')?.content || "";
+    const metaKeywords = document.querySelector('meta[name="keywords"]')?.content || "";
+    chrome.runtime.sendMessage({
+      type: "ankihelper_selection_content_result",
+      data: {
+        title,
+        metaDescription,
+        metaKeywords,
+        mainContent: msg.selection
+      }
+    });
+  }
 });
 
 console.log("✅ Compromise loaded:", typeof nlp);
