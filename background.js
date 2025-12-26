@@ -25,12 +25,12 @@ chrome.runtime.onInstalled.addListener(() => {
   });
   chrome.contextMenus.create({
     id: "ankihelper_read_page_content",
-    title: "Anki Helper: Read all page content",
+    title: "Generate flashcards from all page content",
     contexts: ["page"]
   });
   chrome.contextMenus.create({
     id: "ankihelper_read_selection_content",
-    title: "Anki Helper: Read selected content",
+    title: "Generate flashcards from selected content",
     contexts: ["selection"]
   });
 });
@@ -769,8 +769,26 @@ async function ensureMultipleChoiceModelExists(modelName, inOrderFields) {
     // Templates from example.js - simplified front template
     const cardTemplates = [
       {
-        Name: "Multiple Choice Card",
+        Name: "Multiple Choice With Explanation Card",
         Front: `
+<!-- Hidden data containers to avoid JavaScript escaping issues -->
+<div style="display: none;">
+    <div id="data-question">{{question}}</div>
+    <div id="data-answer-1">{{answer_1}}</div>
+    <div id="data-answer-1-vi">{{answer_1_vi}}</div>
+    <div id="data-flag-1">{{correct_answer_flag_1}}</div>
+    <div id="data-answer-2">{{answer_2}}</div>
+    <div id="data-answer-2-vi">{{answer_2_vi}}</div>
+    <div id="data-flag-2">{{correct_answer_flag_2}}</div>
+    <div id="data-answer-3">{{answer_3}}</div>
+    <div id="data-answer-3-vi">{{answer_3_vi}}</div>
+    <div id="data-flag-3">{{correct_answer_flag_3}}</div>
+    <div id="data-answer-4">{{answer_4}}</div>
+    <div id="data-answer-4-vi">{{answer_4_vi}}</div>
+    <div id="data-flag-4">{{correct_answer_flag_4}}</div>
+    <div id="data-explanation">{{explanation}}</div>
+    <div id="data-explanation-vi">{{explanation_vi}}</div>
+</div>
 <div class="prettify-flashcard">
     <div class="prettify-field prettify-field--front">
         <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">{{question}}</div>
@@ -830,14 +848,30 @@ async function ensureMultipleChoiceModelExists(modelName, inOrderFields) {
     // Run once when card is shown
     onUpdateHook.push(function () {
         const optionsContainer = document.getElementById("answer-options");
-        const questionText = "{{question}}";
         
-        // Create options array with their corresponding data
+        // Read data from hidden data containers to avoid escaping issues
+        const questionText = document.getElementById("data-question").textContent;
         const options = [
-            { text: '{{answer_1}}', text_vi: '{{answer_1_vi}}', correct: '{{correct_answer_flag_1}}' === 'True' },
-            { text: '{{answer_2}}', text_vi: '{{answer_2_vi}}', correct: '{{correct_answer_flag_2}}' === 'True' },
-            { text: '{{answer_3}}', text_vi: '{{answer_3_vi}}', correct: '{{correct_answer_flag_3}}' === 'True' },
-            { text: '{{answer_4}}', text_vi: '{{answer_4_vi}}', correct: '{{correct_answer_flag_4}}' === 'True' }
+            { 
+                text: document.getElementById("data-answer-1").textContent, 
+                text_vi: document.getElementById("data-answer-1-vi").textContent, 
+                correct: document.getElementById("data-flag-1").textContent === 'True' 
+            },
+            { 
+                text: document.getElementById("data-answer-2").textContent, 
+                text_vi: document.getElementById("data-answer-2-vi").textContent, 
+                correct: document.getElementById("data-flag-2").textContent === 'True' 
+            },
+            { 
+                text: document.getElementById("data-answer-3").textContent, 
+                text_vi: document.getElementById("data-answer-3-vi").textContent, 
+                correct: document.getElementById("data-flag-3").textContent === 'True' 
+            },
+            { 
+                text: document.getElementById("data-answer-4").textContent, 
+                text_vi: document.getElementById("data-answer-4-vi").textContent, 
+                correct: document.getElementById("data-flag-4").textContent === 'True' 
+            }
         ];
         
         // Generate shuffled options with seed based on question text for consistency
@@ -898,6 +932,24 @@ async function ensureMultipleChoiceModelExists(modelName, inOrderFields) {
     });
 </script>`,
         Back: `
+<!-- Hidden data containers to avoid JavaScript escaping issues -->
+<div style="display: none;">
+    <div id="data-question-back">{{question}}</div>
+    <div id="data-answer-1-back">{{answer_1}}</div>
+    <div id="data-answer-1-vi-back">{{answer_1_vi}}</div>
+    <div id="data-flag-1-back">{{correct_answer_flag_1}}</div>
+    <div id="data-answer-2-back">{{answer_2}}</div>
+    <div id="data-answer-2-vi-back">{{answer_2_vi}}</div>
+    <div id="data-flag-2-back">{{correct_answer_flag_2}}</div>
+    <div id="data-answer-3-back">{{answer_3}}</div>
+    <div id="data-answer-3-vi-back">{{answer_3_vi}}</div>
+    <div id="data-flag-3-back">{{correct_answer_flag_3}}</div>
+    <div id="data-answer-4-back">{{answer_4}}</div>
+    <div id="data-answer-4-vi-back">{{answer_4_vi}}</div>
+    <div id="data-flag-4-back">{{correct_answer_flag_4}}</div>
+    <div id="data-explanation-back">{{explanation}}</div>
+    <div id="data-explanation-vi-back">{{explanation_vi}}</div>
+</div>
 <div class="prettify-flashcard">
     <div class="prettify-field prettify-field--front">
         <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">{{question}}</div>
@@ -908,6 +960,10 @@ async function ensureMultipleChoiceModelExists(modelName, inOrderFields) {
     <ol class="prettify-multiple-choice" id="answer-options-back">
         <!-- Options will be dynamically inserted here by JavaScript -->
     </ol>
+    <div id="explanation-container" style="margin-top: 20px; padding: 16px; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 6px; display: none;">
+        <div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">💡 Explanation</div>
+        <div id="explanation-text" style="font-size: 15px; color: #1e3a8a; line-height: 1.6;"></div>
+    </div>
 </div>
 
 <script>
@@ -948,19 +1004,37 @@ async function ensureMultipleChoiceModelExists(modelName, inOrderFields) {
         }
         
         // Generate same shuffle order based on question text
-        return seededShuffle([0, 1, 2, 3], generateSeed("{{question}}"));
+        const questionText = document.getElementById("data-question-back").textContent;
+        return seededShuffle([0, 1, 2, 3], generateSeed(questionText));
     }
     
     // Run once when the answer side is shown
-    (function() {
+    onUpdateHook.push(function() {
         const optionsContainer = document.getElementById("answer-options-back");
+        if (!optionsContainer) return;
         
-        // Create options array with their corresponding data
+        // Read data from hidden data containers to avoid escaping issues
         const options = [
-            { text: '{{answer_1}}', text_vi: '{{answer_1_vi}}', correct: '{{correct_answer_flag_1}}' === 'True' },
-            { text: '{{answer_2}}', text_vi: '{{answer_2_vi}}', correct: '{{correct_answer_flag_2}}' === 'True' },
-            { text: '{{answer_3}}', text_vi: '{{answer_3_vi}}', correct: '{{correct_answer_flag_3}}' === 'True' },
-            { text: '{{answer_4}}', text_vi: '{{answer_4_vi}}', correct: '{{correct_answer_flag_4}}' === 'True' }
+            { 
+                text: document.getElementById("data-answer-1-back").textContent, 
+                text_vi: document.getElementById("data-answer-1-vi-back").textContent, 
+                correct: document.getElementById("data-flag-1-back").textContent === 'True' 
+            },
+            { 
+                text: document.getElementById("data-answer-2-back").textContent, 
+                text_vi: document.getElementById("data-answer-2-vi-back").textContent, 
+                correct: document.getElementById("data-flag-2-back").textContent === 'True' 
+            },
+            { 
+                text: document.getElementById("data-answer-3-back").textContent, 
+                text_vi: document.getElementById("data-answer-3-vi-back").textContent, 
+                correct: document.getElementById("data-flag-3-back").textContent === 'True' 
+            },
+            { 
+                text: document.getElementById("data-answer-4-back").textContent, 
+                text_vi: document.getElementById("data-answer-4-vi-back").textContent, 
+                correct: document.getElementById("data-flag-4-back").textContent === 'True' 
+            }
         ];
         
         // Get the indices in the same order as the front template
@@ -989,7 +1063,35 @@ async function ensureMultipleChoiceModelExists(modelName, inOrderFields) {
             
             optionsContainer.appendChild(li);
         });
-    })();
+        
+        // Display explanation if available
+        const explanationText = document.getElementById('data-explanation-back').textContent;
+        const explanationViText = document.getElementById('data-explanation-vi-back').textContent;
+        if ((explanationText && explanationText.trim()) || (explanationViText && explanationViText.trim())) {
+            const explanationContainer = document.getElementById('explanation-container');
+            const explanationTextDiv = document.getElementById('explanation-text');
+            
+            // Clear previous content
+            explanationTextDiv.innerHTML = '';
+            
+            if (explanationText && explanationText.trim()) {
+                const enDiv = document.createElement('div');
+                enDiv.textContent = explanationText;
+                explanationTextDiv.appendChild(enDiv);
+            }
+            
+            if (explanationViText && explanationViText.trim()) {
+                const viDiv = document.createElement('div');
+                viDiv.style.color = '#3730a3';
+                viDiv.style.fontWeight = '500';
+                viDiv.style.marginTop = '8px';
+                viDiv.textContent = explanationViText;
+                explanationTextDiv.appendChild(viDiv);
+            }
+            
+            explanationContainer.style.display = 'block';
+        }
+    });
 </script>`,
       }
     ];
@@ -1646,7 +1748,7 @@ function showFlashcardSelectionModal(tabId, flashcards) {
           left: 0;
           width: 100vw;
           height: 100vh;
-          background: rgba(0,0,0,0.5);
+          background: rgba(0,0,0,0.4);
           backdrop-filter: blur(4px);
           z-index: 999999;
           display: flex;
@@ -1667,12 +1769,13 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         const content = document.createElement("div");
         content.style.cssText = `
           background: #ffffff;
-          border-radius: 16px;
+          border-radius: 12px;
           padding: 0;
           max-width: 700px;
           width: 90%;
           max-height: 85vh;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+          border: 1px solid rgba(148, 163, 184, 0.35);
           display: flex;
           flex-direction: column;
           animation: slideUp 0.3s ease-out;
@@ -1681,24 +1784,24 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         // Header
         const header = document.createElement("div");
         header.style.cssText = `
-          padding: 24px 28px 20px;
+          padding: 20px 24px;
           border-bottom: 1px solid #e5e7eb;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 16px 16px 0 0;
+          background: linear-gradient(180deg, #3b82f6, #2563eb);
+          border-radius: 12px 12px 0 0;
         `;
         const title = document.createElement("h2");
         title.textContent = "📚 Select Flashcards to Import";
         title.style.cssText = `
-          margin: 0 0 8px 0;
-          font-size: 24px;
-          font-weight: 600;
+          margin: 0 0 6px 0;
+          font-size: 20px;
+          font-weight: 650;
           color: #ffffff;
         `;
         const subtitle = document.createElement("p");
         subtitle.textContent = `${notes.length} flashcard${notes.length > 1 ? 's' : ''} generated`;
         subtitle.style.cssText = `
           margin: 0;
-          font-size: 14px;
+          font-size: 13px;
           color: rgba(255,255,255,0.9);
         `;
         header.appendChild(title);
@@ -1707,22 +1810,29 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         // Body container (scrollable)
         const body = document.createElement("div");
         body.style.cssText = `
-          padding: 24px 28px;
+          padding: 20px 24px;
           overflow-y: auto;
           flex: 1;
+          background: #f9fafb;
         `;
 
         // Deck input section
         const deckSection = document.createElement("div");
-        deckSection.style.cssText = `margin-bottom: 20px;`;
+        deckSection.style.cssText = `
+          margin-bottom: 16px;
+          padding: 16px;
+          background: #ffffff;
+          border-radius: 8px;
+          border: 1px solid #e0e4ec;
+        `;
         const deckLabel = document.createElement("label");
         deckLabel.textContent = "Deck Name";
         deckLabel.style.cssText = `
           display: block;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
           font-weight: 600;
-          font-size: 14px;
-          color: #374151;
+          font-size: 13px;
+          color: #111827;
         `;
         const deckInput = document.createElement("input");
         deckInput.type = "text";
@@ -1730,20 +1840,23 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         deckInput.value = "Gemini Flashcards";
         deckInput.style.cssText = `
           width: 100%;
-          font-size: 16px;
-          padding: 12px 16px;
+          font-size: 13px;
+          padding: 9px 10px;
           border-radius: 8px;
-          border: 2px solid #e5e7eb;
-          transition: all 0.2s;
+          border: 1px solid #e0e4ec;
+          transition: all 0.15s;
           box-sizing: border-box;
+          background-color: #f9fafb;
         `;
         deckInput.onfocus = () => {
-          deckInput.style.borderColor = "#667eea";
-          deckInput.style.boxShadow = "0 0 0 3px rgba(102,126,234,0.1)";
+          deckInput.style.borderColor = "#2563eb";
+          deckInput.style.boxShadow = "0 0 0 1px rgba(37, 99, 235, 0.18)";
+          deckInput.style.background = "#ffffff";
         };
         deckInput.onblur = () => {
-          deckInput.style.borderColor = "#e5e7eb";
+          deckInput.style.borderColor = "#e0e4ec";
           deckInput.style.boxShadow = "none";
+          deckInput.style.background = "#f9fafb";
         };
         deckSection.appendChild(deckLabel);
         deckSection.appendChild(deckInput);
@@ -1754,18 +1867,20 @@ function showFlashcardSelectionModal(tabId, flashcards) {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 16px;
-          padding: 12px 16px;
-          background: #f9fafb;
+          margin-bottom: 12px;
+          padding: 10px 14px;
+          background: #ffffff;
           border-radius: 8px;
+          border: 1px solid #e0e4ec;
         `;
         const selectAllLabel = document.createElement("label");
         selectAllLabel.style.cssText = `
           display: flex;
           align-items: center;
           cursor: pointer;
-          font-weight: 500;
-          color: #374151;
+          font-weight: 600;
+          font-size: 13px;
+          color: #111827;
         `;
         const selectAllCheckbox = document.createElement("input");
         selectAllCheckbox.type = "checkbox";
@@ -1773,7 +1888,7 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         selectAllCheckbox.style.cssText = `
           width: 18px;
           height: 18px;
-          margin-right: 10px;
+          margin-right: 8px;
           cursor: pointer;
         `;
         const selectAllText = document.createElement("span");
@@ -1783,7 +1898,7 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         
         const selectedCount = document.createElement("span");
         selectedCount.style.cssText = `
-          font-size: 14px;
+          font-size: 13px;
           color: #6b7280;
           font-weight: 500;
         `;
@@ -1814,22 +1929,22 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         notes.forEach((note, idx) => {
           const cardDiv = document.createElement("div");
           cardDiv.style.cssText = `
-            border: 2px solid #e5e7eb;
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 12px;
+            border: 1px solid #e0e4ec;
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 10px;
             background: #ffffff;
             display: flex;
-            gap: 14px;
-            transition: all 0.2s;
+            gap: 12px;
+            transition: all 0.15s;
             cursor: pointer;
           `;
           cardDiv.onmouseover = () => {
-            cardDiv.style.borderColor = "#667eea";
-            cardDiv.style.boxShadow = "0 4px 12px rgba(102,126,234,0.15)";
+            cardDiv.style.borderColor = "#2563eb";
+            cardDiv.style.boxShadow = "0 4px 12px rgba(37, 99, 235, 0.12)";
           };
           cardDiv.onmouseout = () => {
-            cardDiv.style.borderColor = "#e5e7eb";
+            cardDiv.style.borderColor = "#e0e4ec";
             cardDiv.style.boxShadow = "none";
           };
 
@@ -1857,8 +1972,8 @@ function showFlashcardSelectionModal(tabId, flashcards) {
             margin-bottom: 8px;
           `;
           questionDiv.innerHTML = `
-            <div style="margin-bottom: 4px;">🇬🇧 ${note.question}</div>
-            ${note.question_vi ? `<div style="color: #6b7280; font-weight: 500;">🇻🇳 ${note.question_vi}</div>` : ''}
+            <div style="margin-bottom: 4px;">${note.question}</div>
+            ${note.question_vi ? `<div style="color: #6b7280; font-weight: 500;">${note.question_vi}</div>` : ''}
           `;
           
           const optionsDiv = document.createElement("div");
@@ -1868,7 +1983,7 @@ function showFlashcardSelectionModal(tabId, flashcards) {
             margin-bottom: 6px;
           `;
           const optionsHtml = note.options.map((opt, i) => {
-            const optVi = note.options_vi && note.options_vi[i] ? `<br><span style="font-size: 13px; color: #9ca3af;">🇻🇳 ${note.options_vi[i]}</span>` : '';
+            const optVi = note.options_vi && note.options_vi[i] ? `<br><span style="font-size: 13px; color: #9ca3af;">${note.options_vi[i]}</span>` : '';
             return `<span style="display: inline-block; margin-right: 8px; margin-bottom: 6px; padding: 4px 10px; background: #f3f4f6; border-radius: 4px;">${String.fromCharCode(65+i)}. ${opt}${optVi}</span>`;
           }).join('');
           optionsDiv.innerHTML = optionsHtml;
@@ -1885,6 +2000,30 @@ function showFlashcardSelectionModal(tabId, flashcards) {
           cardContent.appendChild(questionDiv);
           cardContent.appendChild(optionsDiv);
           cardContent.appendChild(answerDiv);
+
+          // Add explanation if available
+          if (note.explanation || note.explanation_vi) {
+            const explanationDiv = document.createElement("div");
+            explanationDiv.style.cssText = `
+              margin-top: 8px;
+              padding: 8px 12px;
+              background: #eff6ff;
+              border-left: 3px solid #3b82f6;
+              border-radius: 4px;
+              font-size: 13px;
+              color: #1e40af;
+              line-height: 1.5;
+            `;
+            let expContent = '';
+            if (note.explanation) {
+              expContent = `<div style="margin-bottom: ${note.explanation_vi ? '4px' : '0'};">💡 ${note.explanation}</div>`;
+            }
+            if (note.explanation_vi) {
+              expContent += `<div style="color: #3730a3; font-weight: 500;">💡 ${note.explanation_vi}</div>`;
+            }
+            explanationDiv.innerHTML = expContent;
+            cardContent.appendChild(explanationDiv);
+          }
 
           cardDiv.appendChild(checkbox);
           cardDiv.appendChild(cardContent);
@@ -1907,58 +2046,62 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         // Footer with buttons
         const footer = document.createElement("div");
         footer.style.cssText = `
-          padding: 20px 28px;
+          padding: 16px 24px;
           border-top: 1px solid #e5e7eb;
           display: flex;
           justify-content: flex-end;
-          gap: 12px;
-          background: #f9fafb;
-          border-radius: 0 0 16px 16px;
+          gap: 10px;
+          background: #ffffff;
+          border-radius: 0 0 12px 12px;
         `;
 
         const cancelBtn = document.createElement("button");
         cancelBtn.textContent = "Cancel";
         cancelBtn.style.cssText = `
-          background: #ffffff;
+          padding: 8px 16px;
+          border-radius: 999px;
+          border: 1px solid #d1d5db;
+          background: #f9fafb;
           color: #374151;
-          font-size: 16px;
+          font-size: 13px;
           font-weight: 500;
-          padding: 12px 24px;
-          border: 2px solid #e5e7eb;
-          border-radius: 8px;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.12s;
         `;
         cancelBtn.onmouseover = () => {
-          cancelBtn.style.background = "#f9fafb";
-          cancelBtn.style.borderColor = "#d1d5db";
+          cancelBtn.style.background = "#eef2ff";
+          cancelBtn.style.borderColor = "#c7d2fe";
+          cancelBtn.style.transform = "translateY(-0.5px)";
         };
         cancelBtn.onmouseout = () => {
-          cancelBtn.style.background = "#ffffff";
-          cancelBtn.style.borderColor = "#e5e7eb";
+          cancelBtn.style.background = "#f9fafb";
+          cancelBtn.style.borderColor = "#d1d5db";
+          cancelBtn.style.transform = "translateY(0)";
         };
 
         const importBtn = document.createElement("button");
         importBtn.textContent = "Import to Anki";
         importBtn.style.cssText = `
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: #ffffff;
-          font-size: 16px;
-          font-weight: 600;
-          padding: 12px 32px;
+          padding: 8px 16px;
+          border-radius: 999px;
           border: none;
-          border-radius: 8px;
+          background: #2563eb;
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s;
-          box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+          transition: all 0.15s;
+          box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25);
         `;
         importBtn.onmouseover = () => {
-          importBtn.style.transform = "translateY(-2px)";
-          importBtn.style.boxShadow = "0 6px 20px rgba(102,126,234,0.4)";
+          importBtn.style.background = "#1d4ed8";
+          importBtn.style.transform = "translateY(-1px)";
+          importBtn.style.boxShadow = "0 10px 24px rgba(37, 99, 235, 0.35)";
         };
         importBtn.onmouseout = () => {
+          importBtn.style.background = "#2563eb";
           importBtn.style.transform = "translateY(0)";
-          importBtn.style.boxShadow = "0 4px 12px rgba(102,126,234,0.3)";
+          importBtn.style.boxShadow = "0 8px 18px rgba(37, 99, 235, 0.25)";
         };
 
         footer.appendChild(cancelBtn);
@@ -2140,7 +2283,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const tabId = sender.tab ? sender.tab.id : undefined;
     if (!tabId) return;
     const deckName = msg.deckName || "Gemini Flashcards";
-    const modelName = "Multiple Choice Model";
+    const modelName = "Multiple Choice With Explanation Model";
 
     // For each note, add to Anki using AnkiConnect
     (async () => {
@@ -2162,7 +2305,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         "correct_answer_flag_1",
         "correct_answer_flag_2",
         "correct_answer_flag_3",
-        "correct_answer_flag_4"
+        "correct_answer_flag_4",
+        "explanation",
+        "explanation_vi"
       ];
 
       // Ensure model exists with proper template
@@ -2186,10 +2331,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           correctIdx === 1 ? "True" : "False",
           correctIdx === 2 ? "True" : "False",
           correctIdx === 3 ? "True" : "False",
+          note.explanation || "",
+          note.explanation_vi || ""
         ];
         const ankiNote = {
           deckName,
-          modelName: "Multiple Choice Model",
+          modelName: "Multiple Choice With Explanation Model",
           fields: {
             question: fields[0],
             question_vi: fields[1],
@@ -2205,6 +2352,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             correct_answer_flag_2: fields[11],
             correct_answer_flag_3: fields[12],
             correct_answer_flag_4: fields[13],
+            explanation: fields[14],
+            explanation_vi: fields[15]
           },
           tags: ["multi-choice"]
         };
@@ -2242,8 +2391,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const model = await getGeminiModel();
       const prompt = `For the content "${mainContent}" with topic ${title} - ${metaDescription} - ${metaKeywords}, generate bilingual (English-Vietnamese) flashcards in the following JSON format. The number of flashcards depends on the content length and must help me have comprehensive knowledge about it.
       Currently, only support multiple-choice flashcards with 4 options each.
-      IMPORTANT: Provide BOTH English and Vietnamese for question, options, and answer.
-[{"type":"multi-choice","question":"What is Kubernetes?","question_vi":"Kubernetes là gì?","options":["A container orchestration tool","A programming language","A cloud provider","A database"],"options_vi":["Công cụ điều phối container","Ngôn ngữ lập trình","Nhà cung cấp đám mây","Cơ sở dữ liệu"],"answer":"A container orchestration tool","answer_vi":"Công cụ điều phối container"}]
+      IMPORTANT: Provide BOTH English and Vietnamese for question, options, answer, AND explanation.
+[{"type":"multi-choice","question":"What is Kubernetes?","question_vi":"Kubernetes là gì?","options":["A container orchestration tool","A programming language","A cloud provider","A database"],"options_vi":["Công cụ điều phối container","Ngôn ngữ lập trình","Nhà cung cấp đám mây","Cơ sở dữ liệu"],"answer":"A container orchestration tool","answer_vi":"Công cụ điều phối container","explanation":"Kubernetes is an open-source platform designed to automate deploying, scaling, and operating containerized applications. It orchestrates computing, networking, and storage infrastructure on behalf of user workloads.","explanation_vi":"Kubernetes là nền tảng mã nguồn mở được thiết kế để tự động hóa việc triển khai, mở rộng và vận hành các ứng dụng được đóng gói trong container. Nó điều phối cơ sở hạ tầng tính toán, mạng và lưu trữ thay mặt cho khối lượng công việc của người dùng."}]
 Only output valid JSON, no explanation, no extra text.`;
       try {
         const res = await fetch(
