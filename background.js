@@ -1203,6 +1203,7 @@ function playAudio() {
         onlineAudio.play();
     }
 }
+playAudio();
 </script>
 `,
     Back: `
@@ -1258,6 +1259,7 @@ function playAudio() {
         onlineAudio.play();
     }
 }
+playAudio();
 </script>
 `
   }
