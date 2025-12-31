@@ -1120,6 +1120,106 @@ async function ensureMultipleChoiceModelExists(modelName, inOrderFields) {
   }
 }
 
+async function ensureFrontBackModelExists(modelName, inOrderFields) {
+  const payload = { action: "modelNames", version: 6, params: {} };
+  try {
+    const res = await fetch("http://localhost:8765", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    console.debug("AnkiConnect modelNames response:", data);
+    if (data.result && data.result.includes(modelName)) return true;
+
+    const cssSmall = `
+        .prettify-flashcard {
+        background-color: var(--card-bg, #ffffff);
+        border-radius: 8px;
+        padding: 12px;
+        border: 1px solid #e6eef7;
+        box-shadow: 0 8px 18px rgba(37,99,235,0.06);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        color: #111827;
+        max-width: 40em;
+        margin: 0 auto;
+        text-align: center;
+      }
+      .prettify-front { font-weight: 600; font-size: 18px; margin-bottom: 8px; text-align: center; }
+      .prettify-back { color: #059669; font-weight: 600; font-size: 16px; margin-bottom: 8px; text-align: center; }
+      .prettify-expl { margin-top: 10px; background: #eff6ff; padding: 8px; border-left: 3px solid #3b82f6; border-radius: 6px; ; text-align: left; }
+      .prettify-multiple-choice { list-style-type: none; padding-left: 0; margin: 1em 0; }
+      .prettify-multiple-choice li { margin-bottom: 0.5em; padding: 0.5em 1em; border: 1px solid #e6eef7; border-radius: 0.25em; cursor: pointer; transition: background-color 0.2s ease, border-color 0.2s ease; }
+      .prettify-multiple-choice li:hover { background-color: #f1f5f9; border-color: #c7e0ff; }
+      .prettify-correct { color: #059669; font-weight: 700; }
+      .prettify-incorrect { color: #ef4444; text-decoration: line-through; opacity: 0.85; }
+    `;
+
+    const cardTemplates = [
+      {
+        Name: "Forward",
+        Front: `<div class="prettify-flashcard"><div class="prettify-front">{{front}}</div>{{#front_vi}}<div style="color:#6b7280;font-weight:500">{{front_vi}}</div>{{/front_vi}}</div>`,
+        Back: `
+        <div class="prettify-flashcard">
+            <div class="prettify-front">{{front}}</div>{{#front_vi}}<div style="color:#6b7280;font-weight:500">{{front_vi}}
+            </div>{{/front_vi}}
+            <hr />
+            <div class="prettify-back">{{back}}</div>{{#back_vi}}<div style="color:#6b7280;font-weight:500">{{back_vi}}</div>
+            {{/back_vi}} {{#explanation}}
+            <div class="prettify-expl">
+                <div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">💡 Explanation</div>
+                <div id="explanation-text" style="font-size: 15px; color: #1e3a8a; line-height: 1.6;">{{explanation}}
+                    ({{explanation_vi}})</div>
+            </div>{{/explanation}} {{#explanation_vi}}
+            {{/explanation_vi}}
+        </div>`
+      },
+      {
+        Name: "Reverse",
+        Front: `<div class="prettify-flashcard"><div class="prettify-front">{{back}}</div>{{#back_vi}}<div style="color:#6b7280;font-weight:500">{{back_vi}}</div>{{/back_vi}}</div>`,
+        Back: `
+        <div class="prettify-flashcard">
+          <div class="prettify-front">{{back}}</div>{{#back_vi}}<div style="color:#6b7280;font-weight:500">{{back_vi}}</div>
+          {{/back_vi}}<div class="prettify-front">{{front}}</div>{{#front_vi}}<div style="color:#6b7280;font-weight:500">
+              {{front_vi}}</div>{{/front_vi}}
+          <hr />
+          <div class="prettify-back">{{back}}</div>{{#back_vi}}<div style="color:#6b7280;font-weight:500">{{back_vi}}</div>
+          {{/back_vi}} {{#explanation}}
+
+          <div class="prettify-expl">
+              <div style="font-size: 14px; font-weight: 600; color: #1e40af; margin-bottom: 8px;">💡 Explanation</div>
+              <div id="explanation-text" style="font-size: 15px; color: #1e3a8a; line-height: 1.6;">{{explanation}}
+                  ({{explanation_vi}})</div>
+          </div>{{/explanation}} {{#explanation_vi}}
+          {{/explanation_vi}}
+      </div>`
+      }
+    ];
+
+    const createPayload = {
+      action: "createModel",
+      version: 6,
+      params: {
+        modelName,
+        inOrderFields,
+        css: cssSmall,
+        cardTemplates
+      }
+    };
+    const createRes = await fetch("http://localhost:8765", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(createPayload)
+    });
+    const createData = await createRes.json();
+    console.debug("AnkiConnect createModel response:", createData);
+    return true;
+  } catch (err) {
+    console.error("ensureFrontBackModelExists error:", err);
+    return false;
+  }
+}
+
 // =======================
 // Card Template & CSS
 // =======================
@@ -1275,6 +1375,14 @@ async function getDeckName() {
     });
   });
 }
+
+function makeSuggestedDeckName(title, metaDescription) {
+  const source = (title && title.trim()) || (metaDescription && metaDescription.trim()) || "";
+  if (!source) return "Gemini Flashcards";
+  let s = source.replace(/\r?\n+/g, " ").replace(/[\/\\:\?\*\"<>\|]+/g, "").replace(/\s+/g, " ").trim();
+  if (s.length > 60) s = s.slice(0, 57) + "...";
+  return s;
+} 
 
 // =======================
 // Main Add-to-Anki Logic
@@ -1730,10 +1838,10 @@ function promptForVietnamese(tabId, word) {
  * @param {number} tabId
  * @param {Array} flashcards - Array of flashcard objects
  */
-function showFlashcardSelectionModal(tabId, flashcards) {
+function showFlashcardSelectionModal(tabId, flashcards, suggestedDeckName) {
   return chrome.scripting.executeScript({
     target: { tabId },
-    func: (flashcardsData) => {
+    func: (flashcardsData, suggestedDeckName) => {
       return new Promise((resolve) => {
         // Remove any existing modal
         const oldModal = document.getElementById("ankihelper-flashcard-modal");
@@ -1838,8 +1946,8 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         `;
         const deckInput = document.createElement("input");
         deckInput.type = "text";
-        deckInput.placeholder = "Enter deck name...";
-        deckInput.value = "Gemini Flashcards";
+        deckInput.placeholder = suggestedDeckName || "Enter deck name...";
+        deckInput.value = suggestedDeckName || "Gemini Flashcards";
         deckInput.style.cssText = `
           width: 100%;
           font-size: 13px;
@@ -1963,6 +2071,8 @@ function showFlashcardSelectionModal(tabId, flashcards) {
           `;
           checkbox.onchange = updateCount;
 
+          // Type label is shown compactly inside the question area (no separate badge element)
+
           const cardContent = document.createElement("div");
           cardContent.style.cssText = `flex: 1; line-height: 1.6;`;
           
@@ -1973,31 +2083,79 @@ function showFlashcardSelectionModal(tabId, flashcards) {
             color: #111827;
             margin-bottom: 8px;
           `;
-          questionDiv.innerHTML = `
-            <div style="margin-bottom: 4px;">${note.question}</div>
-            ${note.question_vi ? `<div style="color: #6b7280; font-weight: 500;">${note.question_vi}</div>` : ''}
-          `;
+          // Build a safe question/title based on card type to avoid showing 'undefined'
+          let questionTitle = '';
+          if (note.type === 'cloze' || note.type === 'cloze_native') {
+            questionTitle = note.text || note.cloze || note.question || '';
+          } else if (note.type === 'basic') {
+            questionTitle = note.front || note.question || note.text || '';
+          } else {
+            questionTitle = note.question || '';
+          }
+          const displayTypeMap = {
+            'multi-choice': 'Multiple Choice',
+            'cloze': 'Cloze',
+            'cloze_native': 'Cloze',
+            'basic': 'Basic'
+          };
+          const displayType = note.type ? (displayTypeMap[note.type] || note.type) : 'Unknown';
+
+          if (note.type && note.type !== 'multi-choice') {
+            // Show a small abbreviation pill with tooltip for the full type
+            questionDiv.innerHTML = `<div style="margin-bottom: 4px;"><span title="${displayType}" style="background:#f3f4f6;padding:3px 6px;border-radius:999px;font-size:12px;color:#374151;font-weight:700;display:inline-block">${displayType}</span></div>`;
+          } else {
+            questionDiv.innerHTML = `
+              <div style="margin-bottom: 4px;"><span title="${displayType}" style="background:#f3f4f6;padding:3px 6px;border-radius:999px;font-size:12px;color:#374151;font-weight:700;display:inline-block">${displayType}</span></div>
+              <div style="margin-bottom: 4px;">${questionTitle}</div>
+              ${note.question_vi ? `<div style="color: #6b7280; font-weight: 500;">${note.question_vi}</div>` : ''}
+            `;
+          }
           
           const optionsDiv = document.createElement("div");
-          optionsDiv.style.cssText = `
-            font-size: 14px;
-            color: #6b7280;
-            margin-bottom: 6px;
-          `;
-          const optionsHtml = note.options.map((opt, i) => {
-            const optVi = note.options_vi && note.options_vi[i] ? `<br><span style="font-size: 13px; color: #9ca3af;">${note.options_vi[i]}</span>` : '';
-            return `<span style="display: inline-block; margin-right: 8px; margin-bottom: 6px; padding: 4px 10px; background: #f3f4f6; border-radius: 4px;">${String.fromCharCode(65+i)}. ${opt}${optVi}</span>`;
-          }).join('');
+          optionsDiv.style.cssText = `font-size: 14px; color: #6b7280; margin-bottom: 6px;`;
+          let optionsHtml = '';
+          // Preview different types
+          if (!note.type || note.type === 'multi-choice') {
+            optionsHtml = (note.options || []).map((opt, i) => {
+              const optVi = note.options_vi && note.options_vi[i] ? `<br><span style="font-size: 13px; color: #9ca3af;">${note.options_vi[i]}</span>` : '';
+              return `<span style="display: inline-block; margin-right: 8px; margin-bottom: 6px; padding: 4px 10px; background: #f3f4f6; border-radius: 4px;">${String.fromCharCode(65+i)}. ${opt}${optVi}</span>`;
+            }).join('');
+          } else if (note.type === 'cloze') {
+            const text = note.text || note.question || '';
+            const textVi = note.text_vi || '';
+            // Render cloze preview: replace {{cN::text::hint}} with blanks and show hint inline
+            const escapeHtml = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const preview = escapeHtml(text).replace(/\{\{c\d+::(.*?)(?:::(.*?))?\}\}/gu, function(m, content, hint){
+              const safeHint = hint ? ` <span style="color:#6b7280;font-size:12px"> (${escapeHtml(hint)})</span>` : '';
+              return `<span style="color: #1565c0">[...]${safeHint}</span>`;
+            });
+            const previewVi = escapeHtml(textVi).replace(/\{\{c\d+::(.*?)(?:::(.*?))?\}\}/gu, function(m, content, hint){
+              const safeHint = hint ? ` <span style="color:#6b7280;font-size:12px"> (${escapeHtml(hint)})</span>` : '';
+              return `<span style="color: #1565c0">[...]${safeHint}</span>`;
+            });
+            optionsHtml = `<div style="font-size:15px;font-weight:600">${preview}</div>${previewVi}`;
+          } else { // basic / front-back
+            const front = note.front || note.question || '';
+            const frontVi = note.front_vi ? `<br><span style="font-size:13px;color:#9ca3af;">${note.front_vi}</span>` : '';
+            optionsHtml = `<div style="font-size:15px;font-weight:600">${front}${frontVi}</div>`;
+          }
           optionsDiv.innerHTML = optionsHtml;
-          
+
           const answerDiv = document.createElement("div");
-          answerDiv.style.cssText = `
-            font-size: 14px;
-            color: #059669;
-            font-weight: 500;
-          `;
-          const answerVi = note.answer_vi ? ` / ${note.answer_vi}` : '';
-          answerDiv.innerHTML = `✓ Answer: ${note.answer}${answerVi}`;
+          answerDiv.style.cssText = `font-size:14px;color:#059669;font-weight:500;`;
+          let answerText = '';
+          if (!note.type || note.type === 'multi-choice') {
+            const answerVi = note.answer_vi ? ` / ${note.answer_vi}` : '';
+            answerText = `${note.answer || ''}${answerVi}`;
+          } else if (note.type === 'cloze') {
+            const ansVi = note.text_vi ? ` / ${note.text_vi}` : '';
+            answerText = `${note.text || ''}${ansVi}`;
+          } else { // basic
+            const back = note.back || note.answer || '';
+            const backVi = note.back_vi ? ` / ${note.back_vi}` : '';
+            answerText = `${back}${backVi}`;
+          }
+          answerDiv.innerHTML = `✓ Answer: ${answerText}`;
 
           cardContent.appendChild(questionDiv);
           cardContent.appendChild(optionsDiv);
@@ -2030,13 +2188,14 @@ function showFlashcardSelectionModal(tabId, flashcards) {
           cardDiv.appendChild(checkbox);
           cardDiv.appendChild(cardContent);
           
-          // Click card to toggle checkbox
+          // Click card to toggle checkbox (ignore clicks on the checkbox)
           cardDiv.onclick = (e) => {
-            if (e.target !== checkbox) {
-              checkbox.checked = !checkbox.checked;
-              updateCount();
+            if (e.target === checkbox) {
+              return;
             }
-          };
+            checkbox.checked = !checkbox.checked;
+            updateCount();
+          }; 
 
           list.appendChild(cardDiv);
         });
@@ -2125,7 +2284,14 @@ function showFlashcardSelectionModal(tabId, flashcards) {
         importBtn.onclick = () => {
           const selected = [];
           list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            if (cb.checked) selected.push(notes[cb.dataset.idx]);
+            if (cb.checked) {
+              const idx = cb.dataset.idx;
+              // Use the original note type (no conversion allowed)
+              const noteCopy = JSON.parse(JSON.stringify(notes[idx])); // copy to avoid mutating original
+              // Remove any importAs property to ensure original type is used
+              if (noteCopy.importAs) delete noteCopy.importAs;
+              selected.push(noteCopy);
+            }
           });
           if (selected.length === 0) {
             alert("Please select at least one flashcard to import.");
@@ -2138,7 +2304,7 @@ function showFlashcardSelectionModal(tabId, flashcards) {
           
           chrome.runtime.sendMessage({
             type: "ankihelper_import_flashcards",
-            deckName: deckInput.value.trim() || "Gemini Flashcards",
+            deckName: deckInput.value.trim() || suggestedDeckName || "Gemini Flashcards",
             notes: selected
           });
           
@@ -2316,62 +2482,118 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       await ensureMultipleChoiceModelExists(modelName, inOrderFields);
 
       for (const note of msg.notes) {
-        // Map note to Anki fields (multi-choice template with bilingual support)
-        const correctIdx = note.options.findIndex(opt => opt === note.answer);
-        const fields = [
-          note.question,
-          note.question_vi || "",
-          note.options[0],
-          note.options_vi && note.options_vi[0] || "",
-          note.options[1],
-          note.options_vi && note.options_vi[1] || "",
-          note.options[2],
-          note.options_vi && note.options_vi[2] || "",
-          note.options[3],
-          note.options_vi && note.options_vi[3] || "",
-          correctIdx === 0 ? "True" : "False",
-          correctIdx === 1 ? "True" : "False",
-          correctIdx === 2 ? "True" : "False",
-          correctIdx === 3 ? "True" : "False",
-          note.explanation || "",
-          note.explanation_vi || ""
-        ];
-        const ankiNote = {
-          deckName,
-          modelName: "Multiple Choice With Explanation Model",
-          fields: {
-            question: fields[0],
-            question_vi: fields[1],
-            answer_1: fields[2],
-            answer_1_vi: fields[3],
-            answer_2: fields[4],
-            answer_2_vi: fields[5],
-            answer_3: fields[6],
-            answer_3_vi: fields[7],
-            answer_4: fields[8],
-            answer_4_vi: fields[9],
-            correct_answer_flag_1: fields[10],
-            correct_answer_flag_2: fields[11],
-            correct_answer_flag_3: fields[12],
-            correct_answer_flag_4: fields[13],
-            explanation: fields[14],
-            explanation_vi: fields[15]
-          },
-          tags: ["multi-choice"]
-        };
-        const payload = {
-          action: "addNote",
-          version: 6,
-          params: { note: ankiNote }
-        };
-        try {
-          await fetch("http://localhost:8765", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-        } catch (err) {
-          console.error("Error adding note to Anki:", err);
+        // Allow UI override (note.importAs) to select which type to import as
+        let type = 'multi-choice';
+        if (note.importAs && note.importAs !== 'auto') type = note.importAs;
+        else type = note.type || 'multi-choice';
+
+        if (type === 'multi-choice') {
+          // Map note to Anki fields (multi-choice template with bilingual support)
+          const correctIdx = (note.options || []).findIndex(opt => opt === note.answer);
+          const fields = [
+            note.question,
+            note.question_vi || "",
+            note.options && note.options[0] || "",
+            note.options_vi && note.options_vi[0] || "",
+            note.options && note.options[1] || "",
+            note.options_vi && note.options_vi[1] || "",
+            note.options && note.options[2] || "",
+            note.options_vi && note.options_vi[2] || "",
+            note.options && note.options[3] || "",
+            note.options_vi && note.options_vi[3] || "",
+            correctIdx === 0 ? "True" : "False",
+            correctIdx === 1 ? "True" : "False",
+            correctIdx === 2 ? "True" : "False",
+            correctIdx === 3 ? "True" : "False",
+            note.explanation || "",
+            note.explanation_vi || ""
+          ];
+          const ankiNote = {
+            deckName,
+            modelName: "Multiple Choice With Explanation Model",
+            fields: {
+              question: fields[0],
+              question_vi: fields[1],
+              answer_1: fields[2],
+              answer_1_vi: fields[3],
+              answer_2: fields[4],
+              answer_2_vi: fields[5],
+              answer_3: fields[6],
+              answer_3_vi: fields[7],
+              answer_4: fields[8],
+              answer_4_vi: fields[9],
+              correct_answer_flag_1: fields[10],
+              correct_answer_flag_2: fields[11],
+              correct_answer_flag_3: fields[12],
+              correct_answer_flag_4: fields[13],
+              explanation: fields[14],
+              explanation_vi: fields[15]
+            },
+            tags: ["multi-choice"]
+          };
+          const payload = { action: "addNote", version: 6, params: { note: ankiNote } };
+          try {
+            await fetch("http://localhost:8765", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+          } catch (err) {
+            console.error("Error adding note to Anki:", err);
+          }
+        } else if (type === 'cloze_native' || type === 'cloze') {
+          // Use Anki's built-in Cloze model directly (do not create a custom model).
+          const modelNameC = "Cloze";
+
+          // Expect Gemini to supply Anki-style cloze markup in the Text field (e.g., The capital of {{c1::Georgia::US state}} is {{c2::Atlanta}}).
+          const clozeText = note.cloze || note.text || note.question || note.answer || '';
+          if (!clozeText) {
+            console.warn('No cloze text provided for note; create a cloze in the source (Gemini) or include a Text field.');
+          }
+
+          // Compose the Extra field to include explanations and optional Vietnamese text
+          const extras = [];
+          if (note.explanation) extras.push(note.explanation);
+          if (note.explanation_vi) extras.push(note.explanation_vi);
+          if (note.text_vi) extras.push(note.text_vi);
+          const extraField = extras.join('\n\n');
+
+          const ankiNote = {
+            deckName,
+            modelName: modelNameC,
+            fields: {
+              Text: clozeText,
+              Extra: extraField
+            },
+            tags: ["cloze","generated","native"]
+          };
+          try {
+            await fetch("http://localhost:8765", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "addNote", version: 6, params: { note: ankiNote } }) });
+          } catch (err) {
+            console.error("Error adding native cloze note to Anki:", err);
+          }
+        } else { // basic / reverse_basic
+          const modelNameB = "Front Back Basic Model";
+          const inOrderB = ["front","front_vi","back","back_vi","explanation","explanation_vi"];
+          await ensureFrontBackModelExists(modelNameB, inOrderB);
+          const ankiNote = {
+            deckName,
+            modelName: modelNameB,
+            fields: {
+              front: note.front || note.question || "",
+              front_vi: note.front_vi || note.question_vi || "",
+              back: note.back || note.answer || "",
+              back_vi: note.back_vi || note.answer_vi || "",
+              explanation: note.explanation || "",
+              explanation_vi: note.explanation_vi || ""
+            },
+            tags: ["basic","generated"]
+          };
+          try {
+            await fetch("http://localhost:8765", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "addNote", version: 6, params: { note: ankiNote } }) });
+          } catch (err) {
+            console.error("Error adding basic note to Anki:", err);
+          }
         }
       }
       // Notify user
@@ -2391,11 +2613,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return;
       }
       const model = await getGeminiModel();
-      const prompt = `For the content "${mainContent}" with topic ${title} - ${metaDescription} - ${metaKeywords}, generate bilingual (English-Vietnamese) flashcards in the following JSON format. The number of flashcards depends on the content length and must help me have comprehensive knowledge about it.
-      Currently, only support multiple-choice flashcards with 4 options each.
-      IMPORTANT: Provide BOTH English and Vietnamese for question, options, answer, AND explanation.
-[{"type":"multi-choice","question":"What is Kubernetes?","question_vi":"Kubernetes là gì?","options":["A container orchestration tool","A programming language","A cloud provider","A database"],"options_vi":["Công cụ điều phối container","Ngôn ngữ lập trình","Nhà cung cấp đám mây","Cơ sở dữ liệu"],"answer":"A container orchestration tool","answer_vi":"Công cụ điều phối container","explanation":"Kubernetes is an open-source platform designed to automate deploying, scaling, and operating containerized applications. It orchestrates computing, networking, and storage infrastructure on behalf of user workloads.","explanation_vi":"Kubernetes là nền tảng mã nguồn mở được thiết kế để tự động hóa việc triển khai, mở rộng và vận hành các ứng dụng được đóng gói trong container. Nó điều phối cơ sở hạ tầng tính toán, mạng và lưu trữ thay mặt cho khối lượng công việc của người dùng."}]
-Only output valid JSON, no explanation, no extra text.`;
+      const prompt = `For the content "${mainContent}" with topic ${title} - ${metaDescription} - ${metaKeywords}, generate bilingual (English-Vietnamese) flashcards in a JSON array. The number of flashcards depends on the content length and should help me gain a comprehensive understanding of the topic.
+      Please support the following card types via the "type" field: "multi-choice", "cloze" and "basic" (front/back). If the "type" is omitted, treat the entry as "multi-choice" for backward compatibility.
+
+      - multi-choice: Provide fields: type, question, question_vi, options (array of 4), options_vi (array), answer, answer_vi, explanation, explanation_vi.
+      - cloze: Provide fields: type="cloze", text (English sentence using Anki native cloze markers like {{c1::word}} or with hints {{c1::word::hint}} - **do not** return underscores), text_vi (same format for Vietnamese if applicable), explanation, explanation_vi. Ensure cloze indices are numbered consistently (c1, c2, ...).
+      - basic: Provide fields: type="basic", front, front_vi, back, back_vi, explanation, explanation_vi.
+
+      Mix types as appropriate for the content (do not return only multiple-choice). Example output array:
+      [
+        {"type":"multi-choice","question":"What is Kubernetes?","question_vi":"Kubernetes là gì?","options":["A container orchestration tool","A programming language","A cloud provider","A database"],"options_vi":["Công cụ điều phối container","Ngôn ngữ lập trình","Nhà cung cấp đám mây","Cơ sở dữ liệu"],"answer":"A container orchestration tool","answer_vi":"Công cụ điều phối container","explanation":"Kubernetes is an open-source platform to automate deployment and scaling.","explanation_vi":"Kubernetes là nền tảng mã nguồn mở để tự động triển khai và mở rộng."},
+        {"type":"cloze","text":"The capital of {{c1::Georgia::US state}} is {{c2::Atlanta}}.","text_vi":"Thủ đô của {{c1::Georgia::bang Hoa Kỳ}} là {{c2::Atlanta}}.","explanation":"Use Anki native cloze markers like {{c1::word}} and optionally include hints as the third parameter: {{c1::word::hint}}. Do NOT include separate answer fields — the cloze markers define the answers.","explanation_vi":"Sử dụng ký hiệu cloze của Anki ({{c1::word}}) và có thể thêm gợi ý: {{c1::word::hint}}. Không cần thêm trường answer — các marker cloze đã chứa đáp án."},
+        {"type":"basic","front":"Describe Kubernetes in one sentence.","front_vi":"Mô tả Kubernetes trong một câu.","back":"An open-source system for automating deployment, scaling, and management of containerized applications.","back_vi":"Hệ thống mã nguồn mở để tự động hóa triển khai, mở rộng và quản lý ứng dụng trong container.","explanation":"Good for short answer practice.","explanation_vi":"Tốt để luyện trả lời ngắn."},
+      ]
+      Only output valid JSON, no explanation, no extra text.`;
       try {
         const res = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=` + apiKey,
@@ -2451,9 +2682,10 @@ Only output valid JSON, no explanation, no extra text.`;
           }
         }
         // Show flashcard selection modal by injecting script directly into page
+        const suggestedDeckName = makeSuggestedDeckName(title, metaDescription);
         hideLoadingOverlay(tabId);
         notify(tabId, "Đã tạo flashcards! Hãy chọn để nhập vào Anki.", true);
-        showFlashcardSelectionModal(tabId, flashcardJson);
+        showFlashcardSelectionModal(tabId, flashcardJson, suggestedDeckName);
       } catch (err) {
         hideLoadingOverlay(tabId);
         notify(tabId, "Lỗi khi gọi Gemini API!", false);
