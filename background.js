@@ -321,6 +321,7 @@ async function getWordInfo(word, translation) {
         return {
           example: info.example ? info.example.trim() : "",
           exampleVN: info.exampleVN ? info.exampleVN.trim() : "",
+          exampleIpa: info.exampleIpa ? info.exampleIpa.trim() : "",
           ipa: info.ipa ? info.ipa.trim() : "",
           type: info.type ? info.type.trim() : "",
           syllables: info.syllables ? info.syllables.trim() : ""
@@ -1269,6 +1270,13 @@ const css = `
     border-radius: 4px;
     color: #333;
 }
+.example-ipa {
+    margin-top: 6px;
+    font-size: 15px;
+    color: #5c6bc0;
+    font-style: italic;
+    letter-spacing: 0.3px;
+}
 `;
 
 const cardTemplates = [
@@ -1345,7 +1353,7 @@ playAudio();
 <audio id="onlineAudio" preload="auto">
     <source src="https://ssl.gstatic.com/dictionary/static/sounds/20200429/{{EnglishWord}}--_us_1.mp3" type="audio/mpeg">
 </audio>
-<div class="example"><strong>Example:</strong> {{ExampleSentence}}</div>
+<div class="example"><strong>Example:</strong> {{ExampleSentence}}{{#ExampleIPA}}<div class="example-ipa">{{ExampleIPA}}</div>{{/ExampleIPA}}</div>
 <div class="example"><strong>Ví dụ:</strong> {{ExampleSentenceVN}}</div>
 <script>
 function playAudio() {
@@ -1360,6 +1368,132 @@ function playAudio() {
     }
 }
 playAudio();
+</script>
+`
+  }
+];
+
+// =======================
+// Card Template & CSS — Version 3.0 (with Example Audio)
+// =======================
+const css3 = css; // reuse same CSS
+
+const cardTemplates3 = [
+  {
+    Name: "Vocabulary Cloze",
+    Front: `
+<div class="cloze">{{EnglishCloze}}</div>
+<div class="ipa">{{IPA}}</div>
+<div class="wordtype">({{WordType}})</div>
+<div class="translation">{{VietnameseCloze}}</div>
+{{#AudioFile}}
+<button class="audio-button" onclick="playAudio()">🔊</button>
+<audio id="localAudio" preload="auto">
+    <source src="{{AudioFile}}" type="audio/mpeg">
+</audio>
+{{/AudioFile}}
+{{^AudioFile}}
+<!-- No audio available -->
+{{/AudioFile}}
+<audio id="onlineAudio" preload="auto">
+    <source src="https://ssl.gstatic.com/dictionary/static/sounds/20200429/{{EnglishWord}}--_us_1.mp3" type="audio/mpeg">
+</audio>
+<script>
+function playAudio() {
+    var localAudio = document.getElementById('localAudio');
+    var onlineAudio = document.getElementById('onlineAudio');
+    if (localAudio && localAudio.canPlayType('audio/mpeg')) {
+        localAudio.play().catch(function() {
+            onlineAudio.play();
+        });
+    } else {
+        onlineAudio.play();
+    }
+}
+playAudio();
+</script>
+`,
+    Back: `
+<div class="cloze">{{EnglishWord}}</div>
+<div id="syllables-boxes" style="margin: 10px 0;"></div>
+<script>
+(function() {
+    var syllables = "{{Syllables}}";
+    var container = document.getElementById("syllables-boxes");
+    if (syllables && container) {
+        var parts = syllables.split(/,\\s*/);
+        for (var i = 0; i < parts.length; i++) {
+            var span = document.createElement("span");
+            span.textContent = parts[i];
+            span.style.display = "inline-block";
+            span.style.background = "#e3eafc";
+            span.style.color = "#1565c0";
+            span.style.padding = "6px 16px";
+            span.style.margin = "2px 4px";
+            span.style.borderRadius = "6px";
+            span.style.fontWeight = "bold";
+            container.appendChild(span);
+        }
+    }
+})();
+</script>
+<div class="ipa">{{IPA}}</div>
+<div class="wordtype">({{WordType}})</div>
+<div class="translation">{{VietnameseTranslation}}</div>
+{{#AudioFile}}
+<button class="audio-button" onclick="playWordAudio()">🔊</button>
+<audio id="localAudio" preload="auto">
+    <source src="{{AudioFile}}" type="audio/mpeg">
+</audio>
+{{/AudioFile}}
+{{^AudioFile}}
+<!-- No audio available -->
+{{/AudioFile}}
+<audio id="onlineAudio" preload="auto">
+    <source src="https://ssl.gstatic.com/dictionary/static/sounds/20200429/{{EnglishWord}}--_us_1.mp3" type="audio/mpeg">
+</audio>
+<div class="example"><strong>Example:</strong> {{ExampleSentence}}{{#ExampleIPA}}<div class="example-ipa">{{ExampleIPA}}</div>{{/ExampleIPA}}
+    {{#ExampleAudioFile}}
+    <br />
+    <button class="audio-button" onclick="playExampleAudio()" style="margin-left:6px;">🔊</button>
+    <audio id="exampleAudio" preload="auto">
+        <source src="{{ExampleAudioFile}}" type="audio/mpeg">
+    </audio>
+    {{/ExampleAudioFile}}
+</div>
+<div class="example"><strong>Ví dụ:</strong> {{ExampleSentenceVN}}</div>
+<script>
+function playExampleAudio() {
+    var exampleAudio = document.getElementById('exampleAudio');
+    if (exampleAudio) {
+        exampleAudio.play().catch(function(e) {
+            console.log('Example audio play failed:', e);
+        });
+    }
+}
+function playWordAudio() {
+    var localAudio = document.getElementById('localAudio');
+    var onlineAudio = document.getElementById('onlineAudio');
+    var wordAudio = null;
+    if (localAudio && localAudio.querySelector('source') && localAudio.querySelector('source').src) {
+        wordAudio = localAudio;
+    } else {
+        wordAudio = onlineAudio;
+    }
+    wordAudio.onended = function() {
+        playExampleAudio();
+    };
+    if (localAudio && localAudio.canPlayType('audio/mpeg')) {
+        localAudio.play().catch(function() {
+            onlineAudio.onended = function() { playExampleAudio(); };
+            onlineAudio.play();
+        });
+    } else {
+        onlineAudio.onended = function() { playExampleAudio(); };
+        onlineAudio.play();
+    }
+}
+playWordAudio();
 </script>
 `
   }
@@ -1393,7 +1527,7 @@ async function getGeminiTranslationAndInfo(word) {
   const apiKey = await getGeminiApiKeyFromPool();
   if (!apiKey) return { translation: "", info: {} };
   // Compose a single prompt to get both translation and info
-  const prompt = `For the English word "${word}", provide the following in JSON:\n{\n  \"translation\": \"<Vietnamese translation, only the word, no explanation, lowercase>\",\n  \"example\": \"<Give a simple, natural English sentence using the word \\\"${word}\\\". Do not use generic templates or mention the instruction itself.>\",\n  \"exampleVN\": \"<Translate the example sentence to Vietnamese.>\",\n  \"ipa\": \"<IPA transcription, e.g. /ˈwɜ:d/>\",\n  \"type\": \"<word type: n, v, adj, adv, prep, pron, conj, interj>\",\n  \"syllables\": \"<Split the word into syllables, separated by comma, e.g. pro, cras, ti, nate>\"\n}\nOnly output valid JSON, no explanation, no extra text.`;
+  const prompt = `For the English word "${word}", provide the following in JSON:\n{\n  \"translation\": \"<Vietnamese translation, only the word, no explanation, lowercase>\",\n  \"example\": \"<Give a simple, natural English sentence using the word \\\"${word}\\\". Do not use generic templates or mention the instruction itself.>\",\n  \"exampleVN\": \"<Translate the example sentence to Vietnamese.>\",\n  \"exampleIpa\": \"<IPA phonetic transcription of the example sentence, e.g. (ði ɪnˈʃʊərᵊns ˈpɒləsi wɪl ˈkʌvər ˈɛni ˈdæmɪʤɪz tuː jɔː kɑː.)>\",\n  \"ipa\": \"<IPA transcription, e.g. /ˈwɜ:d/>\",\n  \"type\": \"<word type: n, v, adj, adv, prep, pron, conj, interj>\",\n  \"syllables\": \"<Split the word into syllables, separated by comma, e.g. pro, cras, ti, nate>\"\n}\nOnly output valid JSON, no explanation, no extra text.`;
   try {
     const model = await getGeminiModel();
     const res = await fetch(
@@ -1425,6 +1559,7 @@ async function getGeminiTranslationAndInfo(word) {
           info: {
             example: info.example ? info.example.trim() : "",
             exampleVN: info.exampleVN ? info.exampleVN.trim() : "",
+            exampleIpa: info.exampleIpa ? info.exampleIpa.trim() : "",
             ipa: info.ipa ? info.ipa.trim() : "",
             type: info.type ? info.type.trim() : "",
             syllables: info.syllables ? info.syllables.trim() : ""
@@ -1444,22 +1579,27 @@ async function getGeminiTranslationAndInfo(word) {
 
 async function addToAnki(word) {
   const deckName = await getDeckName();
-  const modelName = "English Vocab Cloze Template 1.0";
+  const modelName = "English Vocab Cloze Template 3.0";
   const inOrderFields = [
     "Id", "EnglishWord", "EnglishCloze", "VietnameseTranslation", "VietnameseCloze",
-    "IPA", "WordType", "ExampleSentence", "ExampleSentenceVN", "AudioFile", "Syllables"
+    "IPA", "WordType", "ExampleSentence", "ExampleSentenceVN", "ExampleIPA", "AudioFile", "Syllables",
+    "ExampleAudioFile"
   ];
 
   await ensureDeckExists(deckName);
-  await ensureModelExists(modelName, inOrderFields, css, cardTemplates);
+  await ensureModelExists(modelName, inOrderFields, css3, cardTemplates3);
 
   const englishCloze = createCloze(word);
   const { translation: vietnameseTranslation, info } = await getGeminiTranslationAndInfo(word);
   const vietnameseCloze = createCloze(vietnameseTranslation);
 
-  const audioFile = await downloadAndStoreAudio(word);
+  const [audioFile, exampleAudioFile] = await Promise.all([
+    downloadAndStoreAudio(word),
+    downloadAndStoreExampleAudio(info.example || "")
+  ]);
   console.log("Word info from Gemini:", info);
   console.log("Audio filename for word:", word, audioFile);
+  console.log("Example audio filename:", exampleAudioFile);
 
   const note = {
     deckName,
@@ -1474,8 +1614,10 @@ async function addToAnki(word) {
       WordType: info.type || "",
       ExampleSentence: info.example || "",
       ExampleSentenceVN: info.exampleVN || "",
+      ExampleIPA: info.exampleIpa || "",
       AudioFile: audioFile,
       Syllables: info.syllables || "",
+      ExampleAudioFile: exampleAudioFile,
     },
     tags: ["vocabulary", "english", "cloze"]
   };
@@ -1515,22 +1657,27 @@ async function addToAnki(word) {
 
 async function addToAnkiWithCustomMeaning(word, vietnameseTranslation) {
   const deckName = await getDeckName();
-  const modelName = "English Vocab Cloze Template 1.0";
+  const modelName = "English Vocab Cloze Template 3.0";
   const inOrderFields = [
     "Id", "EnglishWord", "EnglishCloze", "VietnameseTranslation", "VietnameseCloze",
-    "IPA", "WordType", "ExampleSentence", "ExampleSentenceVN", "AudioFile", "Syllables"
+    "IPA", "WordType", "ExampleSentence", "ExampleSentenceVN", "ExampleIPA", "AudioFile", "Syllables",
+    "ExampleAudioFile"
   ];
 
   await ensureDeckExists(deckName);
-  await ensureModelExists(modelName, inOrderFields, css, cardTemplates);
+  await ensureModelExists(modelName, inOrderFields, css3, cardTemplates3);
 
   const englishCloze = createCloze(word);
   const vietnameseCloze = createCloze(vietnameseTranslation);
 
   const info = await getWordInfo(word, vietnameseTranslation);
-  const audioFile = await downloadAndStoreAudio(word);
+  const [audioFile, exampleAudioFile] = await Promise.all([
+    downloadAndStoreAudio(word),
+    downloadAndStoreExampleAudio(info.example || "")
+  ]);
   console.log("Word info from Gemini:", info);
   console.log("Audio filename for word:", word, audioFile);
+  console.log("Example audio filename:", exampleAudioFile);
 
   const note = {
     deckName,
@@ -1545,8 +1692,10 @@ async function addToAnkiWithCustomMeaning(word, vietnameseTranslation) {
       WordType: info.type || "",
       ExampleSentence: info.example || "",
       ExampleSentenceVN: info.exampleVN || "",
+      ExampleIPA: info.exampleIpa || "",
       AudioFile: audioFile,
       Syllables: info.syllables || "",
+      ExampleAudioFile: exampleAudioFile,
     },
     tags: ["vocabulary", "english", "cloze"]
   };
@@ -1584,72 +1733,32 @@ async function addToAnkiWithCustomMeaning(word, vietnameseTranslation) {
 }
 
 // =======================
-// Audio Download & Store
+// Audio Download & Store (Google Translate TTS)
 // =======================
 async function downloadAndStoreAudio(word) {
-  let audioSources = [];
+  if (!word || !word.trim()) return "";
+  const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&total=1&idx=0&textlen=${word.length}&client=tw-ob&q=${encodeURIComponent(word)}&tl=en-US`;
+  let audioData = null;
   try {
-    const cambridgeUrl = `https://dictionary.cambridge.org/vi/dictionary/english/${word}`;
-    const resp = await fetch(cambridgeUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "text/html"
-      }
+    const resp = await fetch(ttsUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" }
     });
     if (resp.status === 200) {
-      const html = await resp.text();
-      const match = html.match(/<source[^>]+src="([^"]+\.mp3)"[^>]*type=['"]audio\/mpeg['"]/);
-      if (match && match[1]) {
-        const link = match[1].startsWith("/") ? "https://dictionary.cambridge.org" + match[1] : match[1];
-        audioSources = [link];
-      }
+      audioData = await resp.arrayBuffer();
     }
   } catch (err) {
-    audioSources = [
-      `https://ssl.gstatic.com/dictionary/static/sounds/20200429/${word}--_us_1.mp3`,
-      `https://ssl.gstatic.com/dictionary/static/sounds/20200429/${word}--_gb_1.mp3`,
-      `https://ssl.gstatic.com/dictionary/static/sounds/20220808/${word}--_us_1.mp3`,
-      `https://ssl.gstatic.com/dictionary/static/sounds/20220808/${word}--_us_1_rr.mp3`,
-      `https://ssl.gstatic.com/dictionary/static/sounds/20220808/${word}--_us_2.mp3`,
-      `https://audio.vocab.com/1.0/us/${word.charAt(0).toUpperCase() + word.slice(1)}.mp3`
-    ];
-  }
-  if (audioSources.length === 0) {
-    audioSources = [
-      `https://ssl.gstatic.com/dictionary/static/sounds/20200429/${word}--_us_1.mp3`,
-      `https://ssl.gstatic.com/dictionary/static/sounds/20200429/${word}--_gb_1.mp3`,
-      `https://ssl.gstatic.com/dictionary/static/sounds/20220808/${word}--_us_1.mp3`,
-      `https://ssl.gstatic.com/dictionary/static/sounds/20220808/${word}--_us_1_rr.mp3`,
-      `https://ssl.gstatic.com/dictionary/static/sounds/20220808/${word}--_us_2.mp3`,
-      `https://audio.vocab.com/1.0/us/${word.charAt(0).toUpperCase() + word.slice(1)}.mp3`
-    ];
-  }
-  let audioData = null;
-  let audioUrl = "";
-  for (const url of audioSources) {
-    try {
-      const resp = await fetch(url);
-      if (resp.status === 200) {
-        audioUrl = url;
-        audioData = await resp.arrayBuffer();
-        break;
-      }
-    } catch { }
-  }
-  if (!audioData) {
-    console.warn("Could not download audio from any source for:", word);
+    console.warn("Could not download word TTS audio:", err);
     return "";
   }
-
-  console.log("Downloaded audio data for word:", word, "from:", audioUrl);
+  if (!audioData) {
+    console.warn("Empty word TTS audio for:", word);
+    return "";
+  }
+  console.log("Downloaded TTS audio for word:", word);
   const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(word));
   const hashHex = Array.from(new Uint8Array(hashBuffer)).slice(0, 4).map(b => b.toString(16).padStart(2, "0")).join("");
   const filename = `vocab_${word}_${hashHex}.mp3`;
   const base64Data = btoa(String.fromCharCode(...new Uint8Array(audioData)));
-  const params = {
-    filename: filename,
-    data: base64Data
-  };
   try {
     const res = await fetch("http://localhost:8765", {
       method: "POST",
@@ -1657,20 +1766,65 @@ async function downloadAndStoreAudio(word) {
       body: JSON.stringify({
         action: "storeMediaFile",
         version: 6,
-        params: params
+        params: { filename, data: base64Data }
       })
     });
     const data = await res.json();
     console.debug("AnkiConnect storeMediaFile response:", data);
-    if (data.error) {
-      throw new Error(data.error);
-    }
+    if (data.error) throw new Error(data.error);
     return filename;
   } catch (err) {
     console.error("Failed to store audio file in Anki:", err);
     return "";
   }
 }
+
+// =======================
+// Example Audio Download (Google TTS)
+// =======================
+async function downloadAndStoreExampleAudio(example) {
+  if (!example || !example.trim()) return "";
+  const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&total=1&idx=0&textlen=${example.length}&client=tw-ob&q=${encodeURIComponent(example)}&tl=en-US&ttsspeed=0.24`;
+  let audioData = null;
+  try {
+    const resp = await fetch(ttsUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+    if (resp.status === 200) {
+      audioData = await resp.arrayBuffer();
+    }
+  } catch (err) {
+    console.warn("Could not download example TTS audio:", err);
+    return "";
+  }
+  if (!audioData) {
+    console.warn("Empty example TTS audio for:", example);
+    return "";
+  }
+  const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(example));
+  const hashHex = Array.from(new Uint8Array(hashBuffer)).slice(0, 6).map(b => b.toString(16).padStart(2, "0")).join("");
+  const filename = `example_${hashHex}.mp3`;
+  const base64Data = btoa(String.fromCharCode(...new Uint8Array(audioData)));
+  try {
+    const res = await fetch("http://localhost:8765", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "storeMediaFile",
+        version: 6,
+        params: { filename, data: base64Data }
+      })
+    });
+    const data = await res.json();
+    console.debug("AnkiConnect storeMediaFile (example) response:", data);
+    if (data.error) throw new Error(data.error);
+    return filename;
+  } catch (err) {
+    console.error("Failed to store example audio file in Anki:", err);
+    return "";
+  }
+}
+
 /**
  * Normalize a word to its base/lemma form using compromise
  * - Verbs -> infinitive (e.g., "running" -> "run")
